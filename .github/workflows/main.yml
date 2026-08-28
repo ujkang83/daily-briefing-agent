@@ -1,0 +1,53 @@
+name: Daily Briefing Agent Pipeline
+
+on:
+  schedule:
+    # 매일 아침 7시 KST 실행 (UTC 22:00)
+    - cron: '0 22 * * *'
+  workflow_dispatch: # 수동 실행 활성화
+
+jobs:
+  run-agent:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run Briefing Agent
+      env:
+        # GitHub Repository Secrets에 아래의 비밀값들을 등록해야 작동합니다.
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+        NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+        
+        # 관심사 키워드 설정 (쉼표 구분)
+        NEWS_KEYWORDS: ${{ secrets.NEWS_KEYWORDS || '인공지능, 빅테크, IT 트렌드' }}
+        
+        # 전송용 채널 Webhook 및 토큰들
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        
+        # 이메일 발송용 SMTP 설정
+        SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+        SMTP_PORT: ${{ secrets.SMTP_PORT || '587' }}
+        SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
+        SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }}
+        RECEIVER_EMAIL: ${{ secrets.RECEIVER_EMAIL }}
+        NAVER_BLOG_EMAIL: ${{ secrets.NAVER_BLOG_EMAIL }}
+        NAVER_BLOG_CATEGORY: ${{ secrets.NAVER_BLOG_CATEGORY || '일일 브리핑' }}
+      run: |
+        python main.py
