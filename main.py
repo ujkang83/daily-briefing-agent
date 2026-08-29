@@ -26,6 +26,8 @@ from google.genai import types
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from dotenv import load_dotenv
+from pydantic import BaseModel, Field
+from typing import List, Optional
 
 # 로드 (.env 로컬 설정 대비)
 load_dotenv()
@@ -49,10 +51,13 @@ def _clean_env_val(val):
 
 
 _PRIORITY_MODELS = [
+    'gemini-3.7-flash',
     'gemini-3.6-flash',
     'gemini-3.5-flash',
-    'gemini-2.0-flash',
+    'gemini-2.5-flash',
     'gemini-flash-latest',
+    'gemini-2.5-flash-lite',
+    'gemini-2.0-flash',
     'gemini-2.0-flash-lite',
     'gemini-1.5-flash',
     'gemini-1.5-pro',
@@ -268,6 +273,23 @@ def cluster_and_deduplicate_articles(articles, similarity_threshold=0.25):
 # ==========================================
 # 3단계: 요약 & 분석 (AI Engine — google.genai SDK)
 # ==========================================
+class BriefingItem(BaseModel):
+    headline: str = Field(description="핵심 요약 제목 (기사 제목을 그대로 쓰지 말고 간결히 재구성)")
+    summary: str = Field(description="2~3문장 핵심 요약")
+    impact: str = Field(description="시사점/파급효과 1줄")
+    source_url: str = Field(description="원문 기사 URL, 경제 지표 요약 항목은 빈 문자열")
+
+class BriefingSection(BaseModel):
+    category: str = Field(description="카테고리명 (거시 경제 & 주요 지표, 주요 기업 동향, AX · RX · 디지털 트윈 & 로보틱스, 국제 정세, 국내 정치, 스포츠 중 하나)")
+    items: List[BriefingItem]
+
+class DailyBriefing(BaseModel):
+    title: str = Field(description="브리핑 전체 제목")
+    sections: List[BriefingSection]
+    closing_comment: str = Field(description="마무리 코멘트 1~2문장")
+    short_summary_for_sns: str = Field(description="500자 내외 SNS 요약")
+
+
 class AIEngine:
     def __init__(self, api_key):
         self.client = None
@@ -372,34 +394,43 @@ class AIEngine:
                         config=types.GenerateContentConfig(
                             temperature=0.4,
                             max_output_tokens=8192,
-                            response_mime_type="application/json"
+                            response_mime_type="application/json",
+                            response_schema=DailyBriefing
                         )
                     )
                     api_duration = time.time() - api_start
-                    if response and response.text:
+                    if response:
                         logger.info(f"Gemini API 호출 성공: {api_duration:.2f}초 소요")
-                        cleaned_text = response.text.strip()
-                        if cleaned_text.startswith("```json"):
-                            cleaned_text = cleaned_text[7:]
-                        elif cleaned_text.startswith("```"):
-                            cleaned_text = cleaned_text[3:]
-                        if cleaned_text.endswith("```"):
-                            cleaned_text = cleaned_text[:-3]
-                        cleaned_text = cleaned_text.strip()
-                        try:
-                            return json.loads(cleaned_text)
-                        except json.JSONDecodeError as je:
-                            logger.warning(f"JSON 직접 파싱 실패, 자동 복구 시도: {je}")
-                            repaired = _try_repair_json(cleaned_text)
-                            if repaired is not None:
-                                logger.info("JSON 자동 복구 성공")
-                                return repaired
-                            raise je
+                        if hasattr(response, 'parsed') and response.parsed:
+                            try:
+                                return response.parsed.model_dump()
+                            except Exception as pe:
+                                logger.warning(f"parsed 객체 dump 실패, text 직접 파싱 시도: {pe}")
+                        
+                        if response.text:
+                            cleaned_text = response.text.strip()
+                            if cleaned_text.startswith("```json"):
+                                cleaned_text = cleaned_text[7:]
+                            elif cleaned_text.startswith("```"):
+                                cleaned_text = cleaned_text[3:]
+                            if cleaned_text.endswith("```"):
+                                cleaned_text = cleaned_text[:-3]
+                            cleaned_text = cleaned_text.strip()
+                            try:
+                                return json.loads(cleaned_text)
+                            except json.JSONDecodeError as je:
+                                logger.warning(f"JSON 직접 파싱 실패, 자동 복구 시도: {je}")
+                                repaired = _try_repair_json(cleaned_text)
+                                if repaired is not None:
+                                    logger.info("JSON 자동 복구 성공")
+                                    return repaired
+                                raise je
                 except Exception as e:
                     api_duration = time.time() - api_start if 'api_start' in locals() else 0
                     err_str = str(e)
                     logger.warning(f"Gemini API 호출 실패: {model_name}, 에러: {err_str}, {api_duration:.2f}초")
                     last_error = e
+                    # JSON 파싱 에러(JSONDecodeError) 또는 API 호출 에러 발생 시 fallback을 위해 break 진행
                     if isinstance(e, json.JSONDecodeError) or any(x in err_str for x in ["404", "NotFound", "429", "quota", "ResourceExhausted", "503", "demand", "ServiceUnavailable", "500"]):
                         break
                     else:
