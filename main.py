@@ -409,61 +409,47 @@ def format_briefing_to_html(briefing_data):
 
 def send_email(title, html_body):
     """
-    SMTP 서버를 통해 개인 수신 이메일 및 네이버 블로그 자동 포스팅용 이메일을 발송합니다.
+    SMTP 서버를 통해 개인 수신 이메일로 뉴스레터 브리핑을 발송합니다.
     """
-    smtp_server = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
+    smtp_server = os.environ.get("SMTP_SERVER") or "smtp.gmail.com"
     try:
-        smtp_port = int(os.environ.get("SMTP_PORT", "587"))
+        smtp_port = int(os.environ.get("SMTP_PORT") or "587")
     except Exception:
         smtp_port = 587
     
     sender_email = os.environ.get("SENDER_EMAIL") or os.environ.get("SMTP_SENDER")
     sender_password = os.environ.get("SENDER_PASSWORD") or os.environ.get("SMTP_PASSWORD")
     receiver_email = os.environ.get("RECEIVER_EMAIL") or os.environ.get("SMTP_RECEIVER")
-    naver_blog_email = os.environ.get("NAVER_BLOG_EMAIL")  # 네이버아이디@blog.naver.com
-    naver_category = os.environ.get("NAVER_BLOG_CATEGORY", "일일 브리핑")
     
     if not sender_email or not sender_password:
         logger.warning("SMTP 이메일 계정 정보(SENDER_EMAIL / SENDER_PASSWORD)가 설정되어 있지 않아 발송을 건너뜁니다.")
         return False
         
+    # 수신자 메일이 누락된 경우, 발송인 자신에게 보내도록 안전하게 폴백(Fallback) 설정
+    if not receiver_email:
+        receiver_email = sender_email
+        logger.info(f"RECEIVER_EMAIL이 비어 있어 발송자 계정({sender_email})으로 수신 메일을 발송합니다.")
+        
+    # 쉼표(,) 구분자로 여러 명 수신 지원
+    recipients = [r.strip() for r in receiver_email.split(",") if r.strip()]
+        
     today_str = datetime.now().strftime("%Y-%m-%d")
     
-    # 1. 개인 이메일 발송 설정
-    msg_personal = MIMEMultipart("alternative")
-    msg_personal["Subject"] = f"📬 [Daily Briefing] {today_str} 모닝 인텔리전스 리포트 - {title}"
-    msg_personal["From"] = f"Daily Intelligence Agent <{sender_email}>"
-    msg_personal["To"] = receiver_email if receiver_email else ""
-    msg_personal.attach(MIMEText(html_body, "html", "utf-8"))
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = f"📬 [Daily Briefing] {today_str} 모닝 인텔리전스 리포트 - {title}"
+    msg["From"] = f"Daily Intelligence Agent <{sender_email}>"
+    msg["To"] = ", ".join(recipients)
+    msg.attach(MIMEText(html_body, "html", "utf-8"))
 
-    # 2. 네이버 블로그 자동 포스팅용 메일 설정
-    msg_blog = MIMEMultipart("alternative")
-    msg_blog["Subject"] = f"[{naver_category}] {title}"
-    msg_blog["From"] = sender_email
-    msg_blog["To"] = naver_blog_email if naver_blog_email else ""
-    msg_blog.attach(MIMEText(html_body, "html", "utf-8"))
-
-    success = False
     try:
         with smtplib.SMTP(smtp_server, smtp_port) as server:
             server.starttls()
             server.login(sender_email, sender_password)
-            
-            # 개인 메일 전송
-            if receiver_email:
-                server.sendmail(sender_email, receiver_email, msg_personal.as_string())
-                logger.info("✅ 개인 수신 이메일 발송 완료")
-                success = True
-            
-            # 네이버 블로그 포스팅 전송
-            if naver_blog_email:
-                server.sendmail(sender_email, naver_blog_email, msg_blog.as_string())
-                logger.info("✅ 네이버 블로그 자동 포스팅 완료")
-                success = True
-                
-        return success
+            server.sendmail(sender_email, recipients, msg.as_string())
+            logger.info(f"✅ 수신 이메일 발송 완료 -> {', '.join(recipients)}")
+        return True
     except Exception as e:
-        logger.error(f"❌ 이메일/블로그 발송 실패: {e}")
+        logger.error(f"❌ 이메일 발송 실패: {e}")
         return False
 
 
