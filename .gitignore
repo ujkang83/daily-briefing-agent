@@ -1,0 +1,4 @@
+.env
+AppPW.txt
+__pycache__/
+*.pyc

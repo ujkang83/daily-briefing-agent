@@ -1,4 +1,4 @@
-name: Daily Briefing Agent Pipeline
+name: 일일 브리핑 에이전트 파이프라인
 
 on:
   schedule:
@@ -25,7 +25,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    - name: Run Briefing Agent
+    - name: 실행 에이전트
       env:
         # GitHub Repository Secrets에 아래의 비밀값들을 등록해야 작동합니다.
         GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
