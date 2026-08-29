@@ -379,7 +379,8 @@ def format_briefing_to_html(briefing_data):
     
     # 서론
     if intro:
-        html_parts.append(f'<p style="font-size: 16px; font-weight: 500; color: #555; background-color: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #1A73E8;">{intro.replace("\n", "<br>")}</p>')
+        intro_html = intro.replace("\n", "<br>")
+        html_parts.append(f'<p style="font-size: 16px; font-weight: 500; color: #555; background-color: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #1A73E8;">{intro_html}</p>')
     
     # 본문 세션
     for sec in sections:
@@ -389,12 +390,14 @@ def format_briefing_to_html(briefing_data):
             
         paragraphs = sec.get("paragraphs", [])
         for p in paragraphs:
-            html_parts.append(f'<p style="font-size: 15px; color: #333; margin-bottom: 10px; text-align: justify;">{p.replace("\n", "<br>")}</p>')
+            p_html = p.replace("\n", "<br>")
+            html_parts.append(f'<p style="font-size: 15px; color: #333; margin-bottom: 10px; text-align: justify;">{p_html}</p>')
             
     # 결론
     if conclusion:
+        conclusion_html = conclusion.replace("\n", "<br>")
         html_parts.append('<hr style="border: 0; border-top: 1px solid #eee; margin: 25px 0;">')
-        html_parts.append(f'<p style="font-size: 15px; font-style: italic; color: #666;">{conclusion.replace("\n", "<br>")}</p>')
+        html_parts.append(f'<p style="font-size: 15px; font-style: italic; color: #666;">{conclusion_html}</p>')
         
     # 해시태그
     if hashtags:
