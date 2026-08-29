@@ -40,6 +40,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger("DailyBriefingAgent")
 
+
+def _clean_env_val(val):
+    """환경 변수 값에서 공백, 개행(\r, \n)을 제거하여 클리닝합니다."""
+    if not val:
+        return val
+    return str(val).strip().replace("\r", "").replace("\n", "")
+
+
 _PRIORITY_MODELS = [
     'gemini-3.6-flash',
     'gemini-3.5-flash',
@@ -596,15 +604,15 @@ def send_email(title, html_body):
     """
     SMTP 서버를 통해 개인 수신 이메일로 뉴스레터 브리핑을 발송합니다.
     """
-    smtp_server = os.environ.get("SMTP_SERVER") or "smtp.gmail.com"
+    smtp_server = _clean_env_val(os.environ.get("SMTP_SERVER")) or "smtp.gmail.com"
     try:
-        smtp_port = int(os.environ.get("SMTP_PORT") or "587")
+        smtp_port = int(_clean_env_val(os.environ.get("SMTP_PORT")) or "587")
     except Exception:
         smtp_port = 587
     
-    sender_email = os.environ.get("SENDER_EMAIL") or os.environ.get("SMTP_SENDER")
-    sender_password = os.environ.get("SENDER_PASSWORD") or os.environ.get("SMTP_PASSWORD")
-    receiver_email = os.environ.get("RECEIVER_EMAIL") or os.environ.get("SMTP_RECEIVER")
+    sender_email = _clean_env_val(os.environ.get("SENDER_EMAIL") or os.environ.get("SMTP_SENDER"))
+    sender_password = _clean_env_val(os.environ.get("SENDER_PASSWORD") or os.environ.get("SMTP_PASSWORD"))
+    receiver_email = _clean_env_val(os.environ.get("RECEIVER_EMAIL") or os.environ.get("SMTP_RECEIVER"))
     
     if not sender_email or not sender_password:
         logger.warning("SMTP 이메일 계정 정보(SENDER_EMAIL / SENDER_PASSWORD)가 설정되어 있지 않아 발송을 건너뜁니다.")
@@ -652,17 +660,17 @@ def main():
     logger.info("========================================")
 
     # 설정 로드
-    gemini_api_key = os.getenv("GEMINI_API_KEY")
-    naver_client_id = os.getenv("NAVER_CLIENT_ID")
-    naver_client_secret = os.getenv("NAVER_CLIENT_SECRET")
+    gemini_api_key = _clean_env_val(os.getenv("GEMINI_API_KEY"))
+    naver_client_id = _clean_env_val(os.getenv("NAVER_CLIENT_ID"))
+    naver_client_secret = _clean_env_val(os.getenv("NAVER_CLIENT_SECRET"))
     
-    keywords_str = os.getenv("NEWS_KEYWORDS", "인공지능, 빅테크, IT 트렌드, 경제 증시, 국제 뉴스, 국내 정치, 스포츠")
+    keywords_str = _clean_env_val(os.getenv("NEWS_KEYWORDS", "인공지능, 빅테크, IT 트렌드, 경제 증시, 국제 뉴스, 국내 정치, 스포츠"))
     keywords = [k.strip() for k in keywords_str.split(",") if k.strip()]
     
-    slack_webhook = os.getenv("SLACK_WEBHOOK_URL")
-    telegram_token = os.getenv("TELEGRAM_BOT_TOKEN")
-    telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID")
-    discord_webhook = os.getenv("DISCORD_WEBHOOK_URL")
+    slack_webhook = _clean_env_val(os.getenv("SLACK_WEBHOOK_URL"))
+    telegram_token = _clean_env_val(os.getenv("TELEGRAM_BOT_TOKEN"))
+    telegram_chat_id = _clean_env_val(os.getenv("TELEGRAM_CHAT_ID"))
+    discord_webhook = _clean_env_val(os.getenv("DISCORD_WEBHOOK_URL"))
 
     if not gemini_api_key:
         logger.error("GEMINI_API_KEY 환경변수가 정의되어 있지 않아 에이전트를 종료합니다.")
