@@ -1,5 +1,13 @@
 import os
 import sys
+
+# Windows 콘솔 한글 및 이모지 출력 인코딩 오류 방지
+if hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+
 import re
 import html
 import json
@@ -33,6 +41,8 @@ logger = logging.getLogger("DailyBriefingAgent")
 
 _AVAILABLE_MODELS_CACHE = None
 _PRIORITY_MODELS = [
+    'models/gemini-3.6-flash',
+    'models/gemini-3.1-pro-preview',
     'models/gemini-2.5-flash',
     'models/gemini-2.0-flash',
     'models/gemini-1.5-flash',
@@ -227,8 +237,10 @@ class AIEngine:
         candidates = [p for p in _PRIORITY_MODELS if not available or p in available]
         for am in available:
             if am not in candidates:
-                candidates.append(am)
-        return candidates or ['models/gemini-2.0-flash', 'models/gemini-1.5-flash']
+                # Filter: Only allow core gemini models and exclude tts (audio-only) models
+                if am.startswith("models/gemini-") and "tts" not in am:
+                    candidates.append(am)
+        return candidates or ['models/gemini-3.6-flash', 'models/gemini-1.5-flash']
 
     def generate_briefing(self, articles, additional_notes="", tone="친근하고 유익한 톤", max_retries=2):
         if not self.api_key:
@@ -307,13 +319,21 @@ class AIEngine:
                     api_duration = time.time() - api_start
                     if response and response.text:
                         logger.info(f"Gemini API 호출 성공: {api_duration:.2f}초 소요")
-                        return json.loads(response.text)
+                        cleaned_text = response.text.strip()
+                        if cleaned_text.startswith("```json"):
+                            cleaned_text = cleaned_text[7:]
+                        elif cleaned_text.startswith("```"):
+                            cleaned_text = cleaned_text[3:]
+                        if cleaned_text.endswith("```"):
+                            cleaned_text = cleaned_text[:-3]
+                        cleaned_text = cleaned_text.strip()
+                        return json.loads(cleaned_text)
                 except Exception as e:
                     api_duration = time.time() - api_start if 'api_start' in locals() else 0
                     err_str = str(e)
                     logger.warning(f"Gemini API 호출 실패: {model_name}, 에러: {err_str}, {api_duration:.2f}초")
                     last_error = e
-                    if any(x in err_str for x in ["404", "NotFound", "429", "quota", "ResourceExhausted", "503", "demand", "ServiceUnavailable", "500"]):
+                    if isinstance(e, json.JSONDecodeError) or any(x in err_str for x in ["404", "NotFound", "429", "quota", "ResourceExhausted", "503", "demand", "ServiceUnavailable", "500"]):
                         break
                     else:
                         time.sleep(1)
@@ -442,8 +462,13 @@ def send_email(title, html_body):
     msg.attach(MIMEText(html_body, "html", "utf-8"))
 
     try:
-        with smtplib.SMTP(smtp_server, smtp_port) as server:
+        if smtp_port == 465:
+            server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=10)
+        else:
+            server = smtplib.SMTP(smtp_server, smtp_port, timeout=10)
             server.starttls()
+            
+        with server:
             server.login(sender_email, sender_password)
             server.sendmail(sender_email, recipients, msg.as_string())
             logger.info(f"✅ 수신 이메일 발송 완료 -> {', '.join(recipients)}")
