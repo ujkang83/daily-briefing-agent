@@ -15,9 +15,12 @@ import time
 import logging
 import urllib.parse
 import smtplib
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+
+# 한국 표준시 (KST) 타임존 설정
+KST = timezone(timedelta(hours=9))
 
 import requests
 import feedparser
@@ -101,8 +104,8 @@ def clean_google_title(title):
     return title.strip()
 
 def collect_google_news(keyword, limit=20):
-    """Google News RSS를 통해 기사를 수집합니다."""
-    encoded_keyword = urllib.parse.quote(keyword)
+    """Google News RSS를 통해 기사를 수집합니다. 하루 이내의 최신 기사만 수집하기 위해 when:1d 필터를 적용합니다."""
+    encoded_keyword = urllib.parse.quote(f"{keyword} when:1d")
     rss_url = f"https://news.google.com/rss/search?q={encoded_keyword}&hl=ko&gl=KR&ceid=KR:ko"
     try:
         feed = feedparser.parse(rss_url)
@@ -110,11 +113,12 @@ def collect_google_news(keyword, limit=20):
         for entry in feed.entries[:limit]:
             title = clean_google_title(entry.title)
             desc = clean_html(entry.get("summary", ""))
+            source_name = entry.get("source", {}).get("title", "Google News")
             articles.append({
                 "title": title,
                 "link": entry.link,
                 "description": desc or title,
-                "source": "Google News",
+                "source": source_name,
                 "pub_date": entry.get("published", "")
             })
         return articles
@@ -123,11 +127,11 @@ def collect_google_news(keyword, limit=20):
         return []
 
 def collect_naver_news(keyword, client_id, client_secret, limit=20):
-    """네이버 뉴스 검색 API를 통해 기사를 수집합니다."""
+    """네이버 뉴스 검색 API를 통해 기사를 수집합니다. 최신순으로 정렬하기 위해 sort=date를 적용합니다."""
     if not client_id or not client_secret:
         return []
     encoded_keyword = urllib.parse.quote(keyword)
-    url = f"https://openapi.naver.com/v1/search/news.json?query={encoded_keyword}&display={limit}&sort=sim"
+    url = f"https://openapi.naver.com/v1/search/news.json?query={encoded_keyword}&display={limit}&sort=date"
     headers = {
         "X-Naver-Client-Id": client_id,
         "X-Naver-Client-Secret": client_secret
@@ -258,6 +262,10 @@ def cluster_and_deduplicate_articles(articles, similarity_threshold=0.25):
         for cluster in clusters:
             representative = max(cluster, key=lambda x: len(x.get("title", "")) + len(x.get("description", "")))
             representative["cluster_size"] = len(cluster)
+            representative["related_articles"] = [
+                {"title": x.get("title", ""), "link": x.get("link", ""), "source": x.get("source", "Google News")}
+                for x in cluster if x.get("link", "") != representative.get("link", "")
+            ]
             unique_articles.append(representative)
             
         logger.info(f"중복 뉴스 정제 완료: {len(articles)}개 -> {len(unique_articles)}개 뉴스 그룹 도출")
@@ -275,6 +283,7 @@ class BriefingItem(BaseModel):
     summary: str = Field(description="단 1문장 핵심 요약 (출력 토큰 제한을 넘지 않기 위해 요약은 반드시 1문장이어야 합니다)")
     impact: str = Field(description="시사점/파급효과 1줄")
     source_url: str = Field(description="원문 기사 URL, 경제 지표 요약 항목은 빈 문자열")
+    source_name: str = Field(description="출처 언론사 이름 (예: 연합뉴스, 전자신문 등), 제공된 기사의 출처 정보를 참고하여 작성하세요. 경제 지표 요약 항목은 빈 문자열")
 
 class BriefingSection(BaseModel):
     category: str = Field(description="카테고리명 (거시 경제 & 주요 지표, 주요 기업 동향, AX · RX · 디지털 트윈 & 로보틱스, 국제 정세, 국내 정치, 스포츠 중 하나)")
@@ -320,9 +329,14 @@ class AIEngine:
         if not self.client:
             return {"error": "API Client가 초기화되지 않았습니다."}
 
+        # 오늘 날짜를 KST 기준으로 구해서 프롬프트에 제공
+        from datetime import datetime, timezone, timedelta
+        KST_local = timezone(timedelta(hours=9))
+        today_str = datetime.now(KST_local).strftime("%Y년 %m월 %d일")
+
         articles_text = ""
         for idx, art in enumerate(articles):
-            articles_text += f"[{idx+1}] 제목: {art['title']}\n링크: {art['link']}\n설명: {art['description']}\n\n"
+            articles_text += f"[{idx+1}] 제목: {art['title']}\n출처: {art['source']}\n링크: {art['link']}\n설명: {art['description']}\n\n"
 
         indicators_text = ""
         if indicators:
@@ -332,6 +346,7 @@ class AIEngine:
             indicators_text += "\n"
 
         prompt = f"""당신은 일일 뉴스 브리핑 편집장입니다.
+오늘 날짜는 {today_str}입니다. 반드시 오늘 날짜({today_str}) 기준으로 브리핑 전체 제목과 원고를 작성해 주세요.
 아래의 경제 지표 데이터와 뉴스 기사 목록을 분석하여, 카테고리별로 분류하고 핵심 내용을 요약한 브리핑 원고를 JSON 형식으로 작성해 주세요.
 
 {indicators_text}[뉴스 기사 목록]
@@ -345,11 +360,11 @@ class AIEngine:
 3. "AX · RX · 디지털 트윈 & 로보틱스" - AI, 로봇, 디지털 트윈, 자동화, 기술 혁신, 신기술 적용 사례 관련
 4. "국제 정세" - 해외 정치, 외교, 무역, 지정학적 이슈 관련
 5. "국내 정치" - 국내 정책, 입법, 선거, 주요 정치 현안 관련
-6. "스포츠" - 스포츠 경기 결과, 이적, 기록, 하이라이트, 또는 IT/기술의 스포츠 적용, 스포츠 비즈니스/스폰서십 관련
+6. "스포츠" - 스포츠 경기 결과, 이적, 기록, 하이라이트, 스포츠 비즈니스/스폰서십 관련 (IT 기술이나 과학 기술 관련 내용은 제외하고 온전한 스포츠 경기 및 뉴스만 포함)
 
 [작성 지침]
 1. 모든 카테고리(6개 분야)가 결과에 반드시 포함되어야 하며, 각 카테고리마다 아이템이 최소 3개 이상 작성되어야 합니다. (거시 경제 & 주요 지표의 경우 제공된 경제 지표 요약을 첫 번째 아이템으로 포함하여 최소 3개 이상이어야 합니다.)
-   - 만약 특정 분야(예: 스포츠, 국내 정치 등)에 해당하는 뉴스 기사가 아예 없거나 부족한 경우, 제공된 뉴스 기사 중 IT/기술의 스포츠 적용, 스포츠 스폰서십, 정부의 기술 정책/규제 입법 등 연관된 각도를 찾아서 해석하여 채워 넣으세요.
+   - 만약 특정 분야(예: 스포츠, 국내 정치 등)에 해당하는 뉴스 기사가 아예 없거나 부족한 경우, 제공된 뉴스 기사 중 스포츠 스폰서십, 정부의 기술 정책/규제 입법 등 연관된 각도를 찾아서 해석하여 채워 넣으세요. 스포츠 카테고리의 경우에는 IT 기술 관련 뉴스를 기입하지 말고 온전한 스포츠 스포선십이나 구단 관련 뉴스, 이적 및 경기 결과 등을 활용하세요.
    - 그것도 불가능할 경우, 해당 분야의 최신 트렌드를 기존 제공된 기사를 바탕으로 유추하여 항목을 구성하거나 분석 요약을 분할하여 각 카테고리당 최소 3개의 아이템을 반드시 만드십시오. 빈 카테고리나 3개 미만의 아이템은 허용되지 않습니다.
 2. 같은 사건에 대한 중복 기사는 하나로 통합하고, 가장 대표적인 원문 링크를 사용하세요.
 3. 각 기사 항목에 반드시 원문 기사 링크(source_url)를 포함하세요. 링크는 뉴스 기사 목록에 있는 링크를 그대로 사용하세요. (부족해서 자체적으로 분석/재구성한 항목의 경우, 가장 연관성이 높은 원본 기사의 링크를 source_url로 지정하세요. 경제 지표 요약 항목은 빈 문자열로 하십시오.)
@@ -371,7 +386,8 @@ class AIEngine:
           "headline": "String (핵심 요약 제목)",
           "summary": "String (2~3문장 요약)",
           "impact": "String (시사점/파급효과 1줄)",
-          "source_url": "String (원문 기사 URL, 경제 지표 요약 항목은 빈 문자열)"
+          "source_url": "String (원문 기사 URL, 경제 지표 요약 항목은 빈 문자열)",
+          "source_name": "String (출처 언론사 이름, 예: 연합뉴스, 전자신문 등. 경제 지표 요약 항목은 빈 문자열)"
         }}
       ]
     }}
@@ -511,9 +527,10 @@ def format_briefing_to_html(briefing_data, indicators=None):
     title = briefing_data.get("title", "오늘의 일일 브리핑")
     sections = briefing_data.get("sections", [])
     closing = briefing_data.get("closing_comment", "")
-    today_str = datetime.now().strftime("%Y년 %m월 %d일")
+    now_kst = datetime.now(KST)
+    today_str = now_kst.strftime("%Y년 %m월 %d일")
     weekday_kr = ["월", "화", "수", "목", "금", "토", "일"]
-    today_weekday = weekday_kr[datetime.now().weekday()]
+    today_weekday = weekday_kr[now_kst.weekday()]
 
     parts = []
 
@@ -588,6 +605,7 @@ def format_briefing_to_html(briefing_data, indicators=None):
             summary = (item.get("summary", "") or "").replace("\n", "<br>")
             impact = item.get("impact", "")
             source_url = item.get("source_url", "")
+            source_name = item.get("source_name", "")
 
             parts.append(f"""
       <div style="margin-bottom: 14px; padding: 16px; background-color: #F8FAFC; border-radius: 8px; border-left: 3px solid {badge_color};">
@@ -599,8 +617,28 @@ def format_briefing_to_html(briefing_data, indicators=None):
         <div style="font-size: 13px; color: {badge_color}; font-weight: 600; margin-bottom: 8px;">💡 {impact}</div>""")
 
             if source_url:
+                source_label = f" ({source_name})" if source_name else ""
                 parts.append(f"""
-        <a href="{source_url}" target="_blank" style="font-size: 12px; color: #6366F1; text-decoration: none; font-weight: 500;">관련 기사 보기 →</a>""")
+        <a href="{source_url}" target="_blank" style="font-size: 12px; color: #6366F1; text-decoration: none; font-weight: 500;">관련 기사 보기{source_label} →</a>""")
+
+            # 연관 기사 렌더링
+            related_articles = item.get("related_articles", [])
+            if related_articles:
+                parts.append(f"""
+        <div style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed #E2E8F0;">
+          <div style="font-size: 11px; color: #64748B; font-weight: 600; margin-bottom: 4px;">🔗 연관 기사</div>""")
+                for rel_art in related_articles:
+                    rel_title = rel_art.get("title", "")
+                    rel_url = rel_art.get("link", "")
+                    rel_src = rel_art.get("source", "")
+                    rel_src_label = f" ({rel_src})" if rel_src else ""
+                    if rel_url:
+                        parts.append(f"""
+          <div style="margin-bottom: 3px; font-size: 11px;">
+            <a href="{rel_url}" target="_blank" style="color: #475569; text-decoration: none; font-weight: 400;">• {rel_title}{rel_src_label} →</a>
+          </div>""")
+                parts.append("""
+        </div>""")
 
             parts.append("""
       </div>""")
@@ -657,7 +695,7 @@ def send_email(title, html_body):
     # 쉼표(,) 구분자로 여러 명 수신 지원
     recipients = [r.strip() for r in receiver_email.split(",") if r.strip()]
         
-    today_str = datetime.now().strftime("%Y-%m-%d")
+    today_str = datetime.now(KST).strftime("%Y-%m-%d")
     
     msg = MIMEMultipart("alternative")
     msg["Subject"] = f"📬 [Daily Briefing] {today_str} 모닝 인텔리전스 리포트 - {title}"
@@ -685,6 +723,42 @@ def send_email(title, html_body):
 # ==========================================
 # 5단계: 자동화 메인 실행부 (Runner)
 # ==========================================
+def decode_news_urls(articles):
+    """
+    구글 뉴스 URL을 디코딩하여 국내 언론사 원래 사이트의 기사 링크로 보정합니다.
+    """
+    logger.info("구글 뉴스 URL 디코딩 시작...")
+    try:
+        from googlenewsdecoder import gnewsdecoder
+    except ImportError:
+        logger.warning("googlenewsdecoder 라이브러리가 임포트되지 않아 URL 디코딩을 건너뜁니다.")
+        return articles
+
+    for art in articles:
+        orig_url = art.get("link", "")
+        if orig_url and "news.google.com" in orig_url:
+            try:
+                decoded = gnewsdecoder(orig_url)
+                if decoded.get("status") and decoded.get("decoded_url"):
+                    art["link"] = decoded["decoded_url"]
+                    logger.info(f"URL 디코딩 완료: {decoded['decoded_url']}")
+            except Exception as e:
+                logger.warning(f"URL 디코딩 에러 ({orig_url}): {e}")
+
+        # 연관 기사 URL 디코딩
+        for rel in art.get("related_articles", []):
+            rel_url = rel.get("link", "")
+            if rel_url and "news.google.com" in rel_url:
+                try:
+                    decoded = gnewsdecoder(rel_url)
+                    if decoded.get("status") and decoded.get("decoded_url"):
+                        rel["link"] = decoded["decoded_url"]
+                        logger.info(f"연관 URL 디코딩 완료: {decoded['decoded_url']}")
+                except Exception as e:
+                    logger.warning(f"연관 URL 디코딩 에러 ({rel_url}): {e}")
+    return articles
+
+
 def main():
     logger.info("========================================")
     logger.info("Daily Briefing Standalone Agent 기동")
@@ -721,6 +795,9 @@ def main():
         logger.warning("중복 제거 후 분석할 뉴스 기사가 없어 종료합니다.")
         return
 
+    # 구글 뉴스 URL 디코딩 및 관련 기사 디코딩
+    unique_articles = decode_news_urls(unique_articles)
+
     # 3단계 경제 지표 수집
     logger.info("3단계: 경제 지표 수집 시작...")
     indicators = get_economic_indicators()
@@ -739,6 +816,17 @@ def main():
         return
 
     logger.info(f"AI 브리핑 생성 성공: '{briefing.get('title')}'")
+    
+    # 연관 기사 복원 및 매핑 진행
+    unique_map = {art["link"]: art for art in unique_articles}
+    for section in briefing.get("sections", []):
+        for item in section.get("items", []):
+            orig_url = item.get("source_url", "")
+            if orig_url:
+                matching_art = unique_map.get(orig_url)
+                if matching_art:
+                    item["related_articles"] = matching_art.get("related_articles", [])
+
     section_names = [s.get("category", "?") for s in briefing.get("sections", [])]
     logger.info(f"생성된 섹션: {', '.join(section_names)}")
 

@@ -3,3 +3,5 @@ feedparser>=6.0.10
 scikit-learn>=1.2.0
 requests>=2.31.0
 python-dotenv>=1.0.0
+googlenewsdecoder>=0.1.7
+selectolax>=0.4.11
