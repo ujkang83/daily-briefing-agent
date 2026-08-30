@@ -54,11 +54,8 @@ _PRIORITY_MODELS = [
     'gemini-3.7-flash',
     'gemini-3.6-flash',
     'gemini-3.5-flash',
-    'gemini-2.5-flash',
+    'gemini-3.5-flash-lite',
     'gemini-flash-latest',
-    'gemini-2.5-flash-lite',
-    'gemini-2.0-flash',
-    'gemini-2.0-flash-lite',
     'gemini-1.5-flash',
     'gemini-1.5-pro',
 ]
@@ -275,7 +272,7 @@ def cluster_and_deduplicate_articles(articles, similarity_threshold=0.25):
 # ==========================================
 class BriefingItem(BaseModel):
     headline: str = Field(description="핵심 요약 제목 (기사 제목을 그대로 쓰지 말고 간결히 재구성)")
-    summary: str = Field(description="2~3문장 핵심 요약")
+    summary: str = Field(description="단 1문장 핵심 요약 (출력 토큰 제한을 넘지 않기 위해 요약은 반드시 1문장이어야 합니다)")
     impact: str = Field(description="시사점/파급효과 1줄")
     source_url: str = Field(description="원문 기사 URL, 경제 지표 요약 항목은 빈 문자열")
 
@@ -286,8 +283,8 @@ class BriefingSection(BaseModel):
 class DailyBriefing(BaseModel):
     title: str = Field(description="브리핑 전체 제목")
     sections: List[BriefingSection]
-    closing_comment: str = Field(description="마무리 코멘트 1~2문장")
-    short_summary_for_sns: str = Field(description="500자 내외 SNS 요약")
+    closing_comment: str = Field(description="마무리 코멘트 단 1문장")
+    short_summary_for_sns: str = Field(description="전체 브리핑 200자 내외 요약")
 
 
 class AIEngine:
@@ -342,22 +339,25 @@ class AIEngine:
 {additional_notes}
 
 [카테고리 분류 규칙]
-아래 6개 카테고리 중 해당하는 기사가 있는 카테고리만 포함하세요. 기사가 없는 카테고리는 생략합니다:
+반드시 다음 6개 카테고리를 모두 포함하여 작성하세요 (기사가 부족하거나 없는 카테고리도 절대 생략하지 말고 반드시 포함해야 합니다):
 1. "거시 경제 & 주요 지표" - 경제, 금융, 환율, 주식시장, 금리, 부동산, 물가 관련
 2. "주요 기업 동향" - 기업 투자, M&A, 실적 발표, 신사업, 경영 전략 관련
 3. "AX · RX · 디지털 트윈 & 로보틱스" - AI, 로봇, 디지털 트윈, 자동화, 기술 혁신, 신기술 적용 사례 관련
 4. "국제 정세" - 해외 정치, 외교, 무역, 지정학적 이슈 관련
 5. "국내 정치" - 국내 정책, 입법, 선거, 주요 정치 현안 관련
-6. "스포츠" - 스포츠 경기 결과, 이적, 기록, 하이라이트 관련
+6. "스포츠" - 스포츠 경기 결과, 이적, 기록, 하이라이트, 또는 IT/기술의 스포츠 적용, 스포츠 비즈니스/스폰서십 관련
 
 [작성 지침]
-1. 같은 사건에 대한 중복 기사는 하나로 통합하고, 가장 대표적인 원문 링크를 사용하세요.
-2. 각 기사 항목에 반드시 원문 기사 링크(source_url)를 포함하세요. 링크는 뉴스 기사 목록에 있는 링크를 그대로 사용하세요.
-3. 모든 섹션의 각 항목에 시사점/파급효과(impact)를 1줄로 포함하세요. 특히 "AX · RX · 디지털 트윈 & 로보틱스" 섹션은 필수입니다.
-4. headline은 기사 제목을 그대로 쓰지 말고, 핵심을 간결하게 재구성하세요.
-5. summary는 2~3문장으로 핵심 내용을 요약하세요.
-6. short_summary_for_sns는 전체 브리핑을 500자 내외로 요약한 모바일 알림용 텍스트입니다.
-7. 경제 지표 데이터가 제공된 경우, "거시 경제 & 주요 지표" 섹션의 첫 번째 아이템으로 지표 요약을 포함하세요.
+1. 모든 카테고리(6개 분야)가 결과에 반드시 포함되어야 하며, 각 카테고리마다 아이템이 최소 3개 이상 작성되어야 합니다. (거시 경제 & 주요 지표의 경우 제공된 경제 지표 요약을 첫 번째 아이템으로 포함하여 최소 3개 이상이어야 합니다.)
+   - 만약 특정 분야(예: 스포츠, 국내 정치 등)에 해당하는 뉴스 기사가 아예 없거나 부족한 경우, 제공된 뉴스 기사 중 IT/기술의 스포츠 적용, 스포츠 스폰서십, 정부의 기술 정책/규제 입법 등 연관된 각도를 찾아서 해석하여 채워 넣으세요.
+   - 그것도 불가능할 경우, 해당 분야의 최신 트렌드를 기존 제공된 기사를 바탕으로 유추하여 항목을 구성하거나 분석 요약을 분할하여 각 카테고리당 최소 3개의 아이템을 반드시 만드십시오. 빈 카테고리나 3개 미만의 아이템은 허용되지 않습니다.
+2. 같은 사건에 대한 중복 기사는 하나로 통합하고, 가장 대표적인 원문 링크를 사용하세요.
+3. 각 기사 항목에 반드시 원문 기사 링크(source_url)를 포함하세요. 링크는 뉴스 기사 목록에 있는 링크를 그대로 사용하세요. (부족해서 자체적으로 분석/재구성한 항목의 경우, 가장 연관성이 높은 원본 기사의 링크를 source_url로 지정하세요. 경제 지표 요약 항목은 빈 문자열로 하십시오.)
+4. 모든 섹션의 각 항목에 시사점/파급효과(impact)를 1줄로 포함하세요. 특히 "AX · RX · 디지털 트윈 & 로보틱스" 섹션은 필수입니다.
+5. headline은 기사 제목을 그대로 쓰지 말고, 핵심을 간결하게 재구성하세요.
+6. summary는 반드시 단 1문장으로만 요약하세요. (8192 출력 토큰 한계를 넘지 않기 위해 요약은 반드시 1문장이어야 합니다.)
+7. short_summary_for_sns는 전체 브리핑을 200자 내외로 요약한 모바일 알림용 텍스트입니다.
+8. 경제 지표 데이터가 제공된 경우, "거시 경제 & 주요 지표" 섹션의 첫 번째 아이템으로 지표 요약을 포함하세요.
 
 응답은 반드시 아래 JSON 스키마를 따르며, 마크다운 코드 블록 없이 순수 JSON만 출력하세요:
 
@@ -732,7 +732,7 @@ def main():
     # 4단계 AI 브리핑 생성
     logger.info("4단계: Gemini API를 사용하여 카테고리별 브리핑 생성 시작...")
     ai = AIEngine(gemini_api_key)
-    briefing = ai.generate_briefing(unique_articles[:20], indicators)
+    briefing = ai.generate_briefing(unique_articles[:50], indicators)
     
     if "error" in briefing:
         logger.error(f"브리핑 생성 실패: {briefing['error']}")
