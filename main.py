@@ -297,20 +297,24 @@ def get_economic_indicators():
 # ==========================================
 # 2단계: 정제 & 유사도 클러스터링 (Processor)
 # ==========================================
-def cluster_and_deduplicate_articles(articles, similarity_threshold=0.25):
-    """TF-IDF character n-gram 및 Cosine Similarity를 이용해 중복 기사를 쳐내고 대표 기사만 추립니다."""
+def cluster_and_deduplicate_articles(articles, similarity_threshold=0.28):
+    """TF-IDF 및 Cosine Similarity를 이용해 동일 사건 중복 기사를 정밀 클러스터링하고 대표 기사만 추립니다."""
     if not articles:
         return []
     if len(articles) == 1:
         return [articles[0]]
 
-    corpus = [f"{art.get('title', '')} {art.get('description', '')}" for art in articles]
+    # 스팸 필터링 적용
+    cleaned_articles = [a for a in articles if is_valid_article_url(a.get("link"), title=a.get("title",""), description=a.get("description",""), source_name=a.get("source",""))]
+    if not cleaned_articles:
+        return []
+
+    corpus = [f"{art.get('title', '')} {art.get('title', '')} {art.get('description', '')}" for art in cleaned_articles]
 
     try:
-        # 한국어 조사 극복을 위한 char n-gram 벡터화
         vectorizer = TfidfVectorizer(
-            analyzer='char',
-            ngram_range=(2, 3),
+            analyzer='char_wb',
+            ngram_range=(2, 4),
             min_df=1,
             sublinear_tf=True
         )
@@ -321,18 +325,18 @@ def cluster_and_deduplicate_articles(articles, similarity_threshold=0.25):
         unique_articles = []
         clusters = []
 
-        for i in range(len(articles)):
+        for i in range(len(cleaned_articles)):
             if i in visited:
                 continue
                 
-            cluster = [articles[i]]
+            cluster = [cleaned_articles[i]]
             visited.add(i)
             
-            for j in range(i + 1, len(articles)):
+            for j in range(i + 1, len(cleaned_articles)):
                 if j in visited:
                     continue
                 if sim_matrix[i][j] >= similarity_threshold:
-                    cluster.append(articles[j])
+                    cluster.append(cleaned_articles[j])
                     visited.add(j)
             
             clusters.append(cluster)
@@ -342,15 +346,15 @@ def cluster_and_deduplicate_articles(articles, similarity_threshold=0.25):
             representative["cluster_size"] = len(cluster)
             representative["related_articles"] = [
                 {"title": x.get("title", ""), "link": x.get("link", ""), "source": x.get("source", "Google News")}
-                for x in cluster if x.get("link", "") != representative.get("link", "") and is_valid_article_url(x.get("link", ""))
+                for x in cluster if x.get("link", "") != representative.get("link", "") and is_valid_article_url(x.get("link", ""), title=x.get("title",""), source_name=x.get("source",""))
             ]
             unique_articles.append(representative)
             
-        logger.info(f"중복 뉴스 정제 완료: {len(articles)}개 -> {len(unique_articles)}개 뉴스 그룹 도출")
+        logger.info(f"중복 뉴스 정제 완료: {len(cleaned_articles)}개 -> {len(unique_articles)}개 고유 뉴스 그룹 도출")
         return unique_articles
     except Exception as e:
         logger.error(f"뉴스 유사도 정제 처리 중 에러 발생: {e}")
-        return articles
+        return cleaned_articles
 
 
 # ==========================================
@@ -460,28 +464,31 @@ class AIEngine:
 6. "스포츠" - 국내외 주요 스포츠(KBO 프로야구, 해외축구 EPL, 메이저리그 MLB, K리그, 골프, 농구, 테니스 등)의 최신 소식 (시즌 중에는 경기 결과/스코어/활약상, 시즌 종료/비시즌에는 FA/트레이드/스토브리그/감독선임/스프링캠프 소식을 팩트 기반으로 전달)
 
 [심층 인사이트 및 작성 지침]
-1. ★상투적이고 무의미한 표현 절대 금지★:
+1. ★동일 사건 중복 및 반복 보도 절대 금지 (ZERO DUPLICATE EVENTS)★:
+   - 동일한 사건, 동일한 경기, 동일한 정책 발표, 동일한 인물/기업 이슈를 다룬 기사는 반드시 단 1개의 대표 아이템으로만 작성하십시오.
+   - 같은 카테고리 내에서든 다른 카테고리에서든, **동일하거나 유사한 사건을 여러 아이템에 걸쳐 중복/반복하여 작성하는 것을 엄격히 금지**합니다.
+   - 각 아이템은 반드시 **서로 완전히 다른 독립적인 사건/이슈/경기**를 다루어야 하며, 브리핑 전체에 걸쳐 소재가 겹치지 않도록 다양한 시각의 뉴스를 선정하십시오.
+2. ★상투적이고 무의미한 표현 절대 금지★:
    - "기대된다", "주목된다", "관심이 쏠린다", "경쟁력 강화가 예상된다", "귀추가 주목된다" 같은 진부한 클리셰 문구는 절대 쓰지 마십시오.
    - 대신 "원인 -> 구조적 메커니즘 -> 밸류체인/가격/실적에 미치는 구체적 영향"의 인과관계를 논리적으로 기술하십시오.
-2. ★관련 기업 분석(related_companies) 근거 엄격 적용 (억지 작성 절대 금지)★:
+3. ★관련 기업 분석(related_companies) 근거 엄격 적용 (억지 작성 절대 금지)★:
    - 각 기사 항목마다 해당 이슈와 **직접적이고 명확하게 연관된 기업**(실적 발표, M&A, 주요 공급망 계약, 수혜/피해 인과관계가 명확한 기업)이 있는 경우에만 작성하십시오.
    - **연관성의 근거가 약하거나 모호하거나 억지스러운 경우, 절대로 억지로 끼워 넣지 말고 반드시 빈 리스트 (`[]`)로 남겨두십시오.** (억지 밸류체인 연결 절대 금지)
-3. ★팩트 검증 및 구시대 정보 / 소속팀·선수 오류 절대 금지★:
+4. ★팩트 검증 및 구시대 정보 / 소속팀·선수 오류 절대 금지★:
    - 제공된 최신 뉴스 기사에 기록된 명확한 팩트에 기반하여 작성하십시오.
    - 과거 기억이나 이전 학습 데이터에 기반하여 **이미 이적했거나 소속이 바뀐 선수/감독의 과거 소속팀 오인, 과거 대표이사/소속 등을 잘못 작성하는 팩트 오류를 절대 일으키지 마십시오.** 기사 원문의 최신 소속 및 팩트 정보를 엄격히 검증하여 작성해야 합니다.
-4. ★링크 검증 (공식 홈페이지/도메인 메인 페이지 금지)★:
+5. ★링크 검증 (공식 홈페이지/도메인 메인 페이지 금지)★:
    - KBO, MLB, Premier League 등 스포츠 리그나 기관의 단순 메인 홈페이지 URL(예: kbo.or.kr, mlb.com 메인 등)은 무의미하므로 `source_url`로 사용하지 마십시오. 구체적인 개별 뉴스 기사 원문 URL만 `source_url`로 전달하십시오.
-5. ★최상단 3대 핵심 전략 인사이트(executive_insights) & 주목 기업(key_watchlist_companies)★:
+6. ★최상단 3대 핵심 전략 인사이트(executive_insights) & 주목 기업(key_watchlist_companies)★:
    - `executive_insights`는 오늘 하루 뉴스 전체를 가로지르는 3대 거시적/산업적 관전 포인트(Trend & Structural Shift)를 전문 애널리스트 관점에서 깊이 있게 제시하십시오.
    - `key_watchlist_companies`는 오늘 브리핑 전체에서 가장 핵심적으로 영향받는 대표 기업 3~5개 이름을 배열로 제시하십시오. (연관성이 확실한 기업만 도출)
-6. 모든 카테고리(6개 분야)가 결과에 반드시 포함되어야 하며, 각 카테고리마다 아이템이 최소 3개 이상 작성되어야 합니다.
+7. 모든 카테고리(6개 분야)가 결과에 반드시 포함되어야 하며, 각 카테고리마다 아이템이 최소 3개 이상 작성되어야 합니다.
    - "거시 경제 & 주요 지표" 카테고리는 제공된 경제 지표 요약(첫 번째 아이템) 외에도 금리, 환율, 주식시장, 부동산, 물가, 통화정책 등 실질적인 경제 기사를 최소 3개 이상 추가하여 총 4개 이상의 아이템으로 구성하세요.
    - "스포츠" 카테고리:
      - **시즌 중(On-Season)**인 종목: 당일/전일 실제 경기 결과, 스코어(점수/승패), 주요 선수 활약상 및 순위 변동 등 경기 결과를 구체적으로 포함하세요.
      - **시즌 종료/휴식기(Off-Season / 비경기일)**인 종목: 억지로 경기 결과를 환각(가짜 스코어)하지 말고, 대형 FA 계약, 트레이드, 감독/스태프 교체, 선수단 개편, 스프링캠프훈련, 주요 수상 소식 등 뉴스 기사에 제공된 팩트 소식을 정확히 전달하세요.
      - 야구(KBO/MLB: 봄~가을), 축구(EPL/유럽: 가을~봄), 농구(겨울~봄), 골프 등 사계절 교차 종목이 존재하므로, 당일 진행 중인 종목 뉴스를 우선 활용하세요.
    - 만약 특정 분야에 해당하는 뉴스 기사가 부족한 경우, 제공된 뉴스 기사 중 연관된 각도를 찾아서 해석하거나 최신 트렌드를 유추하여 각 카테고리당 최소 3개 이상의 아이템을 반드시 만드십시오. 빈 카테고리나 3개 미만의 아이템은 허용되지 않습니다.
-7. 같은 사건에 대한 중복 기사는 하나로 통합하고, 가장 대표적인 원문 링크를 사용하세요.
 8. 각 기사 항목에 반드시 원문 기사 링크(source_url)를 포함하세요. 링크는 뉴스 기사 목록에 있는 링크를 그대로 사용하세요. (경제 지표 요약 항목은 빈 문자열로 하십시오.)
 
 응답은 반드시 아래 JSON 스키마를 따르며, 마크다운 코드 블록 없이 순수 JSON만 출력하세요:
@@ -1145,12 +1152,9 @@ def restore_and_enrich_article_links(briefing, unique_articles):
                 if not item.get("source_name"):
                     item["source_name"] = matched.get("source", "")
 
+                # 실제로 동일 사건으로 클러스터링된 진짜 연관 기사만 검증 후 탑재 (억지 할당 금지)
                 rel_arts = matched.get("related_articles", [])
                 rel_arts = [r for r in rel_arts if is_valid_article_url(r.get("link",""), title=r.get("title",""), source_name=r.get("source",""))]
-                if not rel_arts:
-                    other_arts = [a for a in cat_articles if a.get("link") != item.get("source_url") and is_valid_article_url(a.get("link"), title=a.get("title",""), description=a.get("description",""), source_name=a.get("source",""))]
-                    if other_arts:
-                        rel_arts = [{"title": a["title"], "link": a["link"], "source": a.get("source", "")} for a in other_arts[:2]]
                 item["related_articles"] = rel_arts
             else:
                 fallback_art = cat_articles[idx % len(cat_articles)] if cat_articles else (valid_articles[idx % len(valid_articles)] if valid_articles else None)
@@ -1159,9 +1163,8 @@ def restore_and_enrich_article_links(briefing, unique_articles):
                         item["source_url"] = fallback_art.get("link", "")
                     if not item.get("source_name"):
                         item["source_name"] = fallback_art.get("source", "")
-                    other_arts = [a for a in cat_articles if a.get("link") != item.get("source_url") and is_valid_article_url(a.get("link"), title=a.get("title",""), description=a.get("description",""), source_name=a.get("source",""))]
-                    if other_arts:
-                        item["related_articles"] = [{"title": a["title"], "link": a["link"], "source": a.get("source", "")} for a in other_arts[:2]]
+                # 연관 기사가 없는 경우 억지로 다른 기사를 붙이지 않고 빈 리스트 유지
+                item["related_articles"] = []
 
     return briefing
 
