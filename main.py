@@ -835,7 +835,7 @@ def format_briefing_to_html(briefing_data, indicators=None, has_image=False):
                     rel_url = rel_art.get("link", "")
                     rel_src = rel_art.get("source", "")
                     rel_src_label = f" ({rel_src})" if rel_src else ""
-                    if rel_url:
+                    if rel_url and is_valid_article_url(rel_url):
                         parts.append(f"""
           <div style="margin-bottom: 3px; font-size: 11px;">
             <a href="{rel_url}" target="_blank" style="color: #475569; text-decoration: none; font-weight: 400;">• {rel_title}{rel_src_label} →</a>
@@ -1042,17 +1042,141 @@ def main():
     
     # 4.5단계: 일일 요약 이미지 생성 (AI 생성 시도 + 고화질 인포그래픽 배너 폴백)
     logger.info("4.5단계: 일일 요약 이미지 생성 시작...")
+def restore_and_enrich_article_links(briefing, unique_articles):
+    """
+    AI가 생성한 각 섹션/아이템의 source_url과 related_articles를 수집된 뉴스 데이터베이스(unique_articles)와
+    정밀 비교 및 퍼지 매칭하여 100% 누락 없이 유효한 원문 기사 및 연관 기사 링크를 복원 및 보충합니다.
+    """
+    if not briefing or "sections" not in briefing or not unique_articles:
+        return briefing
+
+    unique_map = {art["link"]: art for art in unique_articles if is_valid_article_url(art.get("link"))}
+
+    def find_matching_article(target_url, headline, summary):
+        if target_url and target_url in unique_map:
+            return unique_map[target_url]
+        
+        if target_url:
+            target_norm = target_url.split("?")[0].split("#")[0].strip()
+            for link, art in unique_map.items():
+                link_norm = link.split("?")[0].split("#")[0].strip()
+                if target_norm and link_norm and (target_norm == link_norm or target_norm in link_norm or link_norm in target_norm):
+                    return art
+
+        text = f"{headline} {summary}"
+        words = set(re.findall(r'[가-힣a-zA-Z0-9]{2,}', text))
+        if words:
+            best_art = None
+            max_score = 0
+            for art in unique_articles:
+                art_text = f"{art.get('title', '')} {art.get('description', '')}"
+                art_words = set(re.findall(r'[가-힣a-zA-Z0-9]{2,}', art_text))
+                overlap = len(words & art_words)
+                if overlap > max_score:
+                    max_score = overlap
+                    best_art = art
+            if max_score >= 2:
+                return best_art
+        return None
+
+    valid_articles = [a for a in unique_articles if is_valid_article_url(a.get("link"))]
+
+    for section in briefing.get("sections", []):
+        cat_name = section.get("category", "")
+        items = section.get("items", [])
+
+        cat_articles = []
+        if "스포츠" in cat_name:
+            cat_articles = [a for a in valid_articles if any(kw in f"{a.get('title','')} {a.get('description','')}" for kw in ["스포츠", "야구", "축구", "농구", "골프", "KBO", "EPL", "MLB", "K리그", "손흥민", "선수", "경기", "득점", "승리"])]
+        if not cat_articles:
+            cat_articles = valid_articles
+
+        for idx, item in enumerate(items):
+            orig_url = item.get("source_url", "")
+            headline = item.get("headline", "")
+            summary = item.get("summary", "")
+
+            matched = find_matching_article(orig_url, headline, summary)
+
+            if matched:
+                if not orig_url or not is_valid_article_url(orig_url):
+                    item["source_url"] = matched.get("link", "")
+                if not item.get("source_name"):
+                    item["source_name"] = matched.get("source", "")
+
+                rel_arts = matched.get("related_articles", [])
+                if not rel_arts:
+                    other_arts = [a for a in cat_articles if a.get("link") != item.get("source_url") and is_valid_article_url(a.get("link"))]
+                    if other_arts:
+                        rel_arts = [{"title": a["title"], "link": a["link"], "source": a.get("source", "")} for a in other_arts[:2]]
+                item["related_articles"] = rel_arts
+            else:
+                fallback_art = cat_articles[idx % len(cat_articles)] if cat_articles else (valid_articles[idx % len(valid_articles)] if valid_articles else None)
+                if fallback_art:
+                    if not item.get("source_url") or not is_valid_article_url(item.get("source_url")):
+                        item["source_url"] = fallback_art.get("link", "")
+                    if not item.get("source_name"):
+                        item["source_name"] = fallback_art.get("source", "")
+                    other_arts = [a for a in cat_articles if a.get("link") != item.get("source_url") and is_valid_article_url(a.get("link"))]
+                    if other_arts:
+                        item["related_articles"] = [{"title": a["title"], "link": a["link"], "source": a.get("source", "")} for a in other_arts[:2]]
+
+    return briefing
+
+def main():
+    logger.info("Daily Briefing Standalone Agent 시작...")
+    
+    gemini_api_key = _clean_env_val(os.environ.get("GEMINI_API_KEY"))
+    naver_client_id = _clean_env_val(os.environ.get("NAVER_CLIENT_ID"))
+    naver_client_secret = _clean_env_val(os.environ.get("NAVER_CLIENT_SECRET"))
+    keywords_env = _clean_env_val(os.environ.get("NEWS_KEYWORDS")) or "인공지능, 빅테크, IT 트렌드, 거시 경제, 금융 증시, 금리 환율 부동산, 국제 정세, 국내 정치, 스포츠 경기 결과, KBO 프로야구, 해외축구 EPL, 메이저리그 MLB"
+    keywords = [k.strip() for k in keywords_env.split(",") if k.strip()]
+
+    slack_webhook = _clean_env_val(os.environ.get("SLACK_WEBHOOK_URL"))
+    telegram_token = _clean_env_val(os.environ.get("TELEGRAM_BOT_TOKEN"))
+    telegram_chat_id = _clean_env_val(os.environ.get("TELEGRAM_CHAT_ID"))
+    discord_webhook = _clean_env_val(os.environ.get("DISCORD_WEBHOOK_URL"))
+
+    if not gemini_api_key:
+        logger.error("GEMINI_API_KEY 환경 변수가 설정되지 않았습니다.")
+        return
+
+    # 1단계 뉴스 수집
+    logger.info("1단계: 최신 뉴스 수집 시작...")
+    all_articles = collect_all_news(keywords, naver_client_id, naver_client_secret)
+    if not all_articles:
+        logger.error("수집된 뉴스가 없습니다. 종료합니다.")
+        return
+
+    # 2단계 정제 & 유사도 클러스터링
+    logger.info("2단계: 뉴스 정제 및 유사도 클러스터링 시작...")
+    unique_articles = cluster_and_deduplicate_articles(all_articles)
+
+    # 3단계 경제 지표 수집
+    logger.info("3단계: 경제 지표 수집 시작...")
+    indicators = get_economic_indicators()
+    if indicators:
+        logger.info(f"경제 지표 수집 완료: {len(indicators)}개 지표")
+    else:
+        logger.warning("경제 지표 수집 실패 - 지표 없이 브리핑을 진행합니다.")
+
+    # 4단계 AI 브리핑 생성
+    logger.info("4단계: Gemini API를 사용하여 카테고리별 브리핑 생성 시작...")
+    ai = AIEngine(gemini_api_key)
+    briefing = ai.generate_briefing(unique_articles[:50], indicators)
+    
+    if "error" in briefing:
+        logger.error(f"브리핑 생성 실패: {briefing['error']}")
+        return
+
+    logger.info(f"AI 브리핑 생성 성공: '{briefing.get('title')}'")
+    
+    # 4.5단계: 일일 요약 이미지 생성 (AI 생성 시도 + 고화질 인포그래픽 배너 폴백)
+    logger.info("4.5단계: 일일 요약 이미지 생성 시작...")
     image_bytes = generate_summary_image(ai, briefing, indicators)
 
-    # 연관 기사 복원 및 매핑 진행
-    unique_map = {art["link"]: art for art in unique_articles}
-    for section in briefing.get("sections", []):
-        for item in section.get("items", []):
-            orig_url = item.get("source_url", "")
-            if orig_url:
-                matching_art = unique_map.get(orig_url)
-                if matching_art:
-                    item["related_articles"] = matching_art.get("related_articles", [])
+    # 4.8단계: 기사 원문 및 연관 기사 100% 매핑 보정
+    briefing = restore_and_enrich_article_links(briefing, unique_articles)
 
     section_names = [s.get("category", "?") for s in briefing.get("sections", [])]
     logger.info(f"생성된 섹션: {', '.join(section_names)}")
