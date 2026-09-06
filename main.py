@@ -106,17 +106,52 @@ def clean_google_title(title):
         return parts[0].strip()
     return title.strip()
 
-def is_valid_article_url(url):
+SPAM_KEYWORDS = [
+    "토토", "사설토토", "슬롯", "바카라", "카지노", "먹튀", "꽁머니", "파워볼", "홀덤",
+    "포커", "릴게임", "릴시티", "토토사이트", "토토 콩", "커스텀 슬롯", "축구중계 토토",
+    "스포츠 토토", "토토 노하우", "배팅", "베팅", "검증방", "보증업체", "안전놀이터",
+    "casino", "baccarat", "gambling", "slot", "toto"
+]
+
+SPAM_DOMAINS = [
+    "histoire-pour-tous.fr", "wordpress.com", "blogspot.com"
+]
+
+def is_spam_article(title="", description="", url="", source_name=""):
+    """사설 불법 토토, 슬롯, 카지노 SEO 스팸 기사 및 도메인을 감지하고 엄격히 차단합니다."""
+    text = f"{title} {description} {source_name}".lower()
+    url_lower = (url or "").lower()
+    
+    for kw in SPAM_KEYWORDS:
+        if kw.lower() in text or kw.lower() in url_lower:
+            return True
+            
+    for domain in SPAM_DOMAINS:
+        if domain.lower() in url_lower:
+            return True
+
+    return False
+
+def is_valid_article_url(url, title="", description="", source_name=""):
     """
-    단순 공식 홈페이지, 도메인 루트(KBO, MLB, EPL 메인 등) 및 개별 기사가 아닌 껍데기 링크를 걸러냅니다.
+    단순 공식 홈페이지, 도메인 루트(KBO, MLB, EPL 메인 등) 및 개별 기사가 아닌 껍데기 링크,
+    불법 토토/슬롯 스팸 기사를 걸러냅니다.
     """
     if not url or not isinstance(url, str) or not url.startswith("http"):
         return False
+        
+    if is_spam_article(title=title, description=description, url=url, source_name=source_name):
+        return False
+
     try:
         parsed = urllib.parse.urlparse(url)
         netloc = parsed.netloc.lower()
         path = parsed.path.strip("/")
         
+        for domain in SPAM_DOMAINS:
+            if domain.lower() in netloc:
+                return False
+
         # 1. 경로(path)가 비어있거나 index/home/main 등 단순 메인 페이지인 경우
         if not path or path.lower() in ["", "index.html", "index.htm", "index.php", "home", "main", "default.aspx"]:
             return False
@@ -128,7 +163,6 @@ def is_valid_article_url(url):
         ]
         for gd in generic_domains:
             if gd in netloc:
-                # 리그/기관 공식사이트의 경우 개별 기사/게임 상세 경로가 아니면 제외
                 path_lower = path.lower()
                 if not any(sub in path_lower for sub in ["article", "news", "story", "game", "match", "view"]):
                     return False
@@ -137,19 +171,22 @@ def is_valid_article_url(url):
         return False
 
 def collect_google_news(keyword, limit=20):
-    """Google News RSS를 통해 기사를 수집합니다. 하루 이내의 최신 기사만 수집하기 위해 when:1d 필터를 적용합니다."""
-    encoded_keyword = urllib.parse.quote(f"{keyword} when:1d")
+    """Google News RSS를 통해 기사를 수집합니다. 토토/슬롯 스팸 키워드를 검색 쿼리 차단(-토토 -슬롯 -카지노 -먹튀)과 함께 수집합니다."""
+    search_query = f"{keyword} -토토 -슬롯 -카지노 -먹튀 when:1d"
+    encoded_keyword = urllib.parse.quote(search_query)
     rss_url = f"https://news.google.com/rss/search?q={encoded_keyword}&hl=ko&gl=KR&ceid=KR:ko"
     try:
         feed = feedparser.parse(rss_url)
         articles = []
         for entry in feed.entries[:limit]:
             link = entry.link
-            if not is_valid_article_url(link):
-                continue
             title = clean_google_title(entry.title)
             desc = clean_html(entry.get("summary", ""))
             source_name = entry.get("source", {}).get("title", "Google News")
+            
+            if not is_valid_article_url(link, title=title, description=desc, source_name=source_name):
+                continue
+
             articles.append({
                 "title": title,
                 "link": link,
@@ -163,7 +200,7 @@ def collect_google_news(keyword, limit=20):
         return []
 
 def collect_naver_news(keyword, client_id, client_secret, limit=20):
-    """네이버 뉴스 검색 API를 통해 기사를 수집합니다. 최신순으로 정렬하기 위해 sort=date를 적용합니다."""
+    """네이버 뉴스 검색 API를 통해 기사를 수집합니다."""
     if not client_id or not client_secret:
         return []
     encoded_keyword = urllib.parse.quote(keyword)
@@ -179,10 +216,12 @@ def collect_naver_news(keyword, client_id, client_secret, limit=20):
             articles = []
             for item in data.get("items", []):
                 link = item["link"]
-                if not is_valid_article_url(link):
-                    continue
                 title = clean_html(item["title"])
                 desc = clean_html(item["description"])
+                
+                if not is_valid_article_url(link, title=title, description=desc, source_name="Naver News"):
+                    continue
+
                 articles.append({
                     "title": title,
                     "link": link,
@@ -1045,12 +1084,12 @@ def main():
 def restore_and_enrich_article_links(briefing, unique_articles):
     """
     AI가 생성한 각 섹션/아이템의 source_url과 related_articles를 수집된 뉴스 데이터베이스(unique_articles)와
-    정밀 비교 및 퍼지 매칭하여 100% 누락 없이 유효한 원문 기사 및 연관 기사 링크를 복원 및 보충합니다.
+    정밀 비교 및 퍼지 매칭하여 100% 누락 없이 유효한 원문 기사 및 연관 기사 링크를 복원 및 보충합니다. (스팸 기사 제외)
     """
     if not briefing or "sections" not in briefing or not unique_articles:
         return briefing
 
-    unique_map = {art["link"]: art for art in unique_articles if is_valid_article_url(art.get("link"))}
+    unique_map = {art["link"]: art for art in unique_articles if is_valid_article_url(art.get("link"), title=art.get("title",""), description=art.get("description",""), source_name=art.get("source",""))}
 
     def find_matching_article(target_url, headline, summary):
         if target_url and target_url in unique_map:
@@ -1069,6 +1108,8 @@ def restore_and_enrich_article_links(briefing, unique_articles):
             best_art = None
             max_score = 0
             for art in unique_articles:
+                if is_spam_article(title=art.get("title",""), description=art.get("description",""), url=art.get("link",""), source_name=art.get("source","")):
+                    continue
                 art_text = f"{art.get('title', '')} {art.get('description', '')}"
                 art_words = set(re.findall(r'[가-힣a-zA-Z0-9]{2,}', art_text))
                 overlap = len(words & art_words)
@@ -1079,7 +1120,7 @@ def restore_and_enrich_article_links(briefing, unique_articles):
                 return best_art
         return None
 
-    valid_articles = [a for a in unique_articles if is_valid_article_url(a.get("link"))]
+    valid_articles = [a for a in unique_articles if is_valid_article_url(a.get("link"), title=a.get("title",""), description=a.get("description",""), source_name=a.get("source",""))]
 
     for section in briefing.get("sections", []):
         cat_name = section.get("category", "")
@@ -1087,7 +1128,7 @@ def restore_and_enrich_article_links(briefing, unique_articles):
 
         cat_articles = []
         if "스포츠" in cat_name:
-            cat_articles = [a for a in valid_articles if any(kw in f"{a.get('title','')} {a.get('description','')}" for kw in ["스포츠", "야구", "축구", "농구", "골프", "KBO", "EPL", "MLB", "K리그", "손흥민", "선수", "경기", "득점", "승리"])]
+            cat_articles = [a for a in valid_articles if any(kw in f"{a.get('title','')} {a.get('description','')}" for kw in ["스포츠", "야구", "축구", "농구", "골프", "KBO", "EPL", "MLB", "K리그", "선수", "경기", "득점", "승리"])]
         if not cat_articles:
             cat_articles = valid_articles
 
@@ -1099,25 +1140,26 @@ def restore_and_enrich_article_links(briefing, unique_articles):
             matched = find_matching_article(orig_url, headline, summary)
 
             if matched:
-                if not orig_url or not is_valid_article_url(orig_url):
+                if not orig_url or not is_valid_article_url(orig_url, title=headline, description=summary):
                     item["source_url"] = matched.get("link", "")
                 if not item.get("source_name"):
                     item["source_name"] = matched.get("source", "")
 
                 rel_arts = matched.get("related_articles", [])
+                rel_arts = [r for r in rel_arts if is_valid_article_url(r.get("link",""), title=r.get("title",""), source_name=r.get("source",""))]
                 if not rel_arts:
-                    other_arts = [a for a in cat_articles if a.get("link") != item.get("source_url") and is_valid_article_url(a.get("link"))]
+                    other_arts = [a for a in cat_articles if a.get("link") != item.get("source_url") and is_valid_article_url(a.get("link"), title=a.get("title",""), description=a.get("description",""), source_name=a.get("source",""))]
                     if other_arts:
                         rel_arts = [{"title": a["title"], "link": a["link"], "source": a.get("source", "")} for a in other_arts[:2]]
                 item["related_articles"] = rel_arts
             else:
                 fallback_art = cat_articles[idx % len(cat_articles)] if cat_articles else (valid_articles[idx % len(valid_articles)] if valid_articles else None)
                 if fallback_art:
-                    if not item.get("source_url") or not is_valid_article_url(item.get("source_url")):
+                    if not item.get("source_url") or not is_valid_article_url(item.get("source_url"), title=headline, description=summary):
                         item["source_url"] = fallback_art.get("link", "")
                     if not item.get("source_name"):
                         item["source_name"] = fallback_art.get("source", "")
-                    other_arts = [a for a in cat_articles if a.get("link") != item.get("source_url") and is_valid_article_url(a.get("link"))]
+                    other_arts = [a for a in cat_articles if a.get("link") != item.get("source_url") and is_valid_article_url(a.get("link"), title=a.get("title",""), description=a.get("description",""), source_name=a.get("source",""))]
                     if other_arts:
                         item["related_articles"] = [{"title": a["title"], "link": a["link"], "source": a.get("source", "")} for a in other_arts[:2]]
 
@@ -1129,7 +1171,7 @@ def main():
     gemini_api_key = _clean_env_val(os.environ.get("GEMINI_API_KEY"))
     naver_client_id = _clean_env_val(os.environ.get("NAVER_CLIENT_ID"))
     naver_client_secret = _clean_env_val(os.environ.get("NAVER_CLIENT_SECRET"))
-    keywords_env = _clean_env_val(os.environ.get("NEWS_KEYWORDS")) or "인공지능, 빅테크, IT 트렌드, 거시 경제, 금융 증시, 금리 환율 부동산, 국제 정세, 국내 정치, 스포츠 경기 결과, KBO 프로야구, 해외축구 EPL, 메이저리그 MLB"
+    keywords_env = _clean_env_val(os.environ.get("NEWS_KEYWORDS")) or "인공지능, 빅테크, IT 트렌드, 거시 경제, 금융 증시, 금리 환율 부동산, 국제 정세, 국내 정치, KBO 프로야구, 해외축구 EPL, 메이저리그 MLB"
     keywords = [k.strip() for k in keywords_env.split(",") if k.strip()]
 
     slack_webhook = _clean_env_val(os.environ.get("SLACK_WEBHOOK_URL"))

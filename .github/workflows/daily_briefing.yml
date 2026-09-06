@@ -34,7 +34,7 @@ jobs:
         NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
         
         # 관심사 키워드 설정 (쉼표 구분)
-        NEWS_KEYWORDS: ${{ secrets.NEWS_KEYWORDS || '인공지능, 빅테크, IT 트렌드, 거시 경제, 금융 증시, 금리 환율 부동산, 국제 정세, 국내 정치, 스포츠 경기 결과, KBO 프로야구, 해외축구 EPL, 메이저리그 MLB' }}
+        NEWS_KEYWORDS: ${{ secrets.NEWS_KEYWORDS || '인공지능, 빅테크, IT 트렌드, 거시 경제, 금융 증시, 금리 환율 부동산, 국제 정세, 국내 정치, KBO 프로야구, 해외축구 EPL, 메이저리그 MLB' }}
         
         # 전송용 채널 Webhook 및 토큰들
         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
