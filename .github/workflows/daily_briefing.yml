@@ -2,8 +2,8 @@ name: 일일 브리핑 에이전트 파이프라인
 
 on:
   schedule:
-    # 매일 아침 7시 KST 실행 (UTC 22:00)
-    - cron: '0 22 * * *'
+    # 매일 아침 6시 KST 실행 (UTC 21:00)
+    - cron: '0 21 * * *'
   workflow_dispatch: # 수동 실행 활성화
 
 jobs:
@@ -22,6 +22,7 @@ jobs:
 
     - name: Install dependencies
       run: |
+        sudo apt-get update && sudo apt-get install -y fonts-nanum fonts-nanum-coding
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
@@ -33,7 +34,7 @@ jobs:
         NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
         
         # 관심사 키워드 설정 (쉼표 구분)
-        NEWS_KEYWORDS: ${{ secrets.NEWS_KEYWORDS || '인공지능, 빅테크, IT 트렌드' }}
+        NEWS_KEYWORDS: ${{ secrets.NEWS_KEYWORDS || '인공지능, 빅테크, IT 트렌드, 거시 경제, 금융 증시, 금리 환율 부동산, 국제 정세, 국내 정치, 스포츠 경기 결과, 해외축구 손흥민 KBO' }}
         
         # 전송용 채널 Webhook 및 토큰들
         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

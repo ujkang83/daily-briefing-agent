@@ -8,6 +8,7 @@ if hasattr(sys.stdout, 'reconfigure'):
     except Exception:
         pass
 
+import io
 import re
 import html
 import json
@@ -18,6 +19,7 @@ import smtplib
 from datetime import datetime, timezone, timedelta
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.image import MIMEImage
 
 # 한국 표준시 (KST) 타임존 설정
 KST = timezone(timedelta(hours=9))
@@ -26,6 +28,7 @@ import requests
 import feedparser
 from google import genai
 from google.genai import types
+from PIL import Image, ImageDraw, ImageFont
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from dotenv import load_dotenv
@@ -291,9 +294,11 @@ class BriefingSection(BaseModel):
 
 class DailyBriefing(BaseModel):
     title: str = Field(description="브리핑 전체 제목")
+    daily_summary: str = Field(description="오늘 브리핑 전체를 관통하는 핵심 1문장 요약 (가장 먼저 노출될 핵심 하이라이트)")
+    image_prompt: Optional[str] = Field(default="", description="오늘의 핵심 테마를 표현하는 영문 이미지 생성 프롬프트 (예: Futuristic modern 3D infographic illustration representing global economy, AI robotics innovation, and sports results, 8k render)")
     sections: List[BriefingSection]
-    closing_comment: str = Field(description="마무리 코멘트 단 1문장")
-    short_summary_for_sns: str = Field(description="전체 브리핑 200자 내외 요약")
+    closing_comment: Optional[str] = Field(default="", description="마무리 코멘트 단 1문장")
+    short_summary_for_sns: str = Field(description="전체 브리핑 200자 내외 요약 (모바일/메신저 전송용)")
 
 
 class AIEngine:
@@ -355,36 +360,41 @@ class AIEngine:
 
 [카테고리 분류 규칙]
 반드시 다음 6개 카테고리를 모두 포함하여 작성하세요 (기사가 부족하거나 없는 카테고리도 절대 생략하지 말고 반드시 포함해야 합니다):
-1. "거시 경제 & 주요 지표" - 경제, 금융, 환율, 주식시장, 금리, 부동산, 물가 관련
+1. "거시 경제 & 주요 지표" - 경제, 금융, 환율, 주식시장, 금리, 부동산, 물가, 통화정책 등 주요 경제 기사 (경제 지표 요약 외에도 실질적인 경제 관련 뉴스 기사 다수 포함)
 2. "주요 기업 동향" - 기업 투자, M&A, 실적 발표, 신사업, 경영 전략 관련
 3. "AX · RX · 디지털 트윈 & 로보틱스" - AI, 로봇, 디지털 트윈, 자동화, 기술 혁신, 신기술 적용 사례 관련
 4. "국제 정세" - 해외 정치, 외교, 무역, 지정학적 이슈 관련
 5. "국내 정치" - 국내 정책, 입법, 선거, 주요 정치 현안 관련
-6. "스포츠" - 스포츠 경기 결과, 이적, 기록, 하이라이트, 스포츠 비즈니스/스폰서십 관련 (IT 기술이나 과학 기술 관련 내용은 제외하고 온전한 스포츠 경기 및 뉴스만 포함)
+6. "스포츠" - 국내외 주요 스포츠(프로야구 KBO, 해외축구/손흥민/EPL, 메이저리그 MLB, K리그, 골프, 농구 등)의 최신 경기 결과, 스코어(득점/실점/승패), 주요 기록 및 핵심 하이라이트 (IT/과학 기술 뉴스는 제외하고 온전한 스포츠 경기 결과 및 소식만 포함)
 
 [작성 지침]
-1. 모든 카테고리(6개 분야)가 결과에 반드시 포함되어야 하며, 각 카테고리마다 아이템이 최소 3개 이상 작성되어야 합니다. (거시 경제 & 주요 지표의 경우 제공된 경제 지표 요약을 첫 번째 아이템으로 포함하여 최소 3개 이상이어야 합니다.)
-   - 만약 특정 분야(예: 스포츠, 국내 정치 등)에 해당하는 뉴스 기사가 아예 없거나 부족한 경우, 제공된 뉴스 기사 중 스포츠 스폰서십, 정부의 기술 정책/규제 입법 등 연관된 각도를 찾아서 해석하여 채워 넣으세요. 스포츠 카테고리의 경우에는 IT 기술 관련 뉴스를 기입하지 말고 온전한 스포츠 스포선십이나 구단 관련 뉴스, 이적 및 경기 결과 등을 활용하세요.
-   - 그것도 불가능할 경우, 해당 분야의 최신 트렌드를 기존 제공된 기사를 바탕으로 유추하여 항목을 구성하거나 분석 요약을 분할하여 각 카테고리당 최소 3개의 아이템을 반드시 만드십시오. 빈 카테고리나 3개 미만의 아이템은 허용되지 않습니다.
-2. 같은 사건에 대한 중복 기사는 하나로 통합하고, 가장 대표적인 원문 링크를 사용하세요.
-3. 각 기사 항목에 반드시 원문 기사 링크(source_url)를 포함하세요. 링크는 뉴스 기사 목록에 있는 링크를 그대로 사용하세요. (부족해서 자체적으로 분석/재구성한 항목의 경우, 가장 연관성이 높은 원본 기사의 링크를 source_url로 지정하세요. 경제 지표 요약 항목은 빈 문자열로 하십시오.)
-4. 모든 섹션의 각 항목에 시사점/파급효과(impact)를 1줄로 포함하세요. 특히 "AX · RX · 디지털 트윈 & 로보틱스" 섹션은 필수입니다.
-5. headline은 기사 제목을 그대로 쓰지 말고, 핵심을 간결하게 재구성하세요.
-6. summary는 반드시 단 1문장으로만 요약하세요. (8192 출력 토큰 한계를 넘지 않기 위해 요약은 반드시 1문장이어야 합니다.)
-7. short_summary_for_sns는 전체 브리핑을 200자 내외로 요약한 모바일 알림용 텍스트입니다.
-8. 경제 지표 데이터가 제공된 경우, "거시 경제 & 주요 지표" 섹션의 첫 번째 아이템으로 지표 요약을 포함하세요.
+1. 모든 카테고리(6개 분야)가 결과에 반드시 포함되어야 하며, 각 카테고리마다 아이템이 최소 3개 이상 작성되어야 합니다.
+   - "거시 경제 & 주요 지표" 카테고리는 제공된 경제 지표 요약(첫 번째 아이템) 외에도 금리, 환율, 주식시장, 부동산, 물가, 통화정책 등 실질적인 경제 기사를 최소 3개 이상 추가하여 총 4개 이상의 아이템으로 구성하세요.
+   - "스포츠" 카테고리는 단순 행사나 칼럼이 아닌 당일/전일 실제 주요 경기 결과, 스코어(점수/승패), 주요 선수 활약상 및 순위 변동 등 실제 경기 결과를 반드시 구체적인 스코어/내용과 함께 포함하여 작성하세요.
+   - 만약 특정 분야(예: 스포츠, 국내 정치 등)에 해당하는 뉴스 기사가 부족한 경우, 제공된 뉴스 기사 중 연관된 각도를 찾아서 해석하거나 최신 트렌드를 유추하여 각 카테고리당 최소 3개 이상의 아이템을 반드시 만드십시오. 빈 카테고리나 3개 미만의 아이템은 허용되지 않습니다.
+2. `daily_summary` 필드에는 오늘 하루 브리핑 전체를 관통하는 핵심 1문장 요약(가장 강력하고 통찰력 있는 단 1문장)을 반드시 작성하세요. 이 문장은 브리핑 최상단에 핵심 하이라이트로 노출됩니다.
+3. `image_prompt` 필드에는 오늘 브리핑의 주요 테마(경제, AI 혁신, 스포츠 등)를 시각화할 수 있는 세련된 영문 이미지 생성 프롬프트(1~2문장)를 작성하세요.
+4. 같은 사건에 대한 중복 기사는 하나로 통합하고, 가장 대표적인 원문 링크를 사용하세요.
+5. 각 기사 항목에 반드시 원문 기사 링크(source_url)를 포함하세요. 링크는 뉴스 기사 목록에 있는 링크를 그대로 사용하세요. (부족해서 자체적으로 분석/재구성한 항목의 경우, 가장 연관성이 높은 원본 기사의 링크를 source_url로 지정하세요. 경제 지표 요약 항목은 빈 문자열로 하십시오.)
+6. 모든 섹션의 각 항목에 시사점/파급효과(impact)를 1줄로 포함하세요. 특히 "AX · RX · 디지털 트윈 & 로보틱스" 섹션은 필수입니다.
+7. headline은 기사 제목을 그대로 쓰지 말고, 핵심을 간결하게 재구성하세요.
+8. summary는 반드시 단 1문장으로만 요약하세요. (8192 출력 토큰 한계를 넘지 않기 위해 요약은 반드시 1문장이어야 합니다.)
+9. short_summary_for_sns는 전체 브리핑을 200자 내외로 요약한 모바일 알림용 텍스트입니다.
+10. 경제 지표 데이터가 제공된 경우, "거시 경제 & 주요 지표" 섹션의 첫 번째 아이템으로 지표 요약을 포함하세요.
 
 응답은 반드시 아래 JSON 스키마를 따르며, 마크다운 코드 블록 없이 순수 JSON만 출력하세요:
 
 {{
   "title": "String (브리핑 전체 제목)",
+  "daily_summary": "String (오늘 브리핑 전체를 관통하는 핵심 1문장 요약)",
+  "image_prompt": "String (오늘의 테마를 표현하는 영문 이미지 생성 프롬프트)",
   "sections": [
     {{
       "category": "String (카테고리명 - 위 6개 중 정확히 일치하는 이름 사용)",
       "items": [
         {{
           "headline": "String (핵심 요약 제목)",
-          "summary": "String (2~3문장 요약)",
+          "summary": "String (1문장 핵심 요약)",
           "impact": "String (시사점/파급효과 1줄)",
           "source_url": "String (원문 기사 URL, 경제 지표 요약 항목은 빈 문자열)",
           "source_name": "String (출처 언론사 이름, 예: 연합뉴스, 전자신문 등. 경제 지표 요약 항목은 빈 문자열)"
@@ -392,8 +402,8 @@ class AIEngine:
       ]
     }}
   ],
-  "closing_comment": "String (마무리 코멘트 1~2문장)",
-  "short_summary_for_sns": "String (500자 내외 SNS 요약)"
+  "closing_comment": "String (마무리 코멘트 1문장)",
+  "short_summary_for_sns": "String (200자 내외 SNS 요약)"
 }}"""
 
         candidates = self._get_available_models()
@@ -519,14 +529,204 @@ def _get_badge_style(category):
     return ("#475569", "📌")
 
 
-def format_briefing_to_html(briefing_data, indicators=None):
+# ==========================================
+# 3.5단계: 일일 요약 이미지 생성기 (Image Generator)
+# ==========================================
+def _get_system_font(size, bold=False):
+    """OS 환경(Windows, Linux/Ubuntu 등)에 맞는 최적의 폰트를 로드합니다."""
+    candidates = [
+        # Windows 맑은 고딕
+        'C:/Windows/Fonts/malgunbd.ttf' if bold else 'C:/Windows/Fonts/malgun.ttf',
+        'C:/Windows/Fonts/gulim.ttc',
+        # Linux / Ubuntu 나눔고딕
+        '/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf' if bold else '/usr/share/fonts/truetype/nanum/NanumGothic.ttf',
+        '/usr/share/fonts/truetype/nanum/NanumBarunGothicBold.ttf' if bold else '/usr/share/fonts/truetype/nanum/NanumBarunGothic.ttf',
+        '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf' if bold else '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+    ]
+    for path in candidates:
+        if os.path.exists(path):
+            try:
+                return ImageFont.truetype(path, size)
+            except Exception:
+                pass
+    return ImageFont.load_default()
+
+def _wrap_text_to_lines(text, font, max_width, draw):
+    """텍스트를 지정된 최대 픽셀 너비에 맞춰 단어 단위로 줄바꿈합니다."""
+    lines = []
+    paragraphs = text.split('\n')
+    for paragraph in paragraphs:
+        if not paragraph:
+            continue
+        words = paragraph.split(' ')
+        current_line = words[0] if words else ''
+        for word in words[1:]:
+            test_line = current_line + ' ' + word
+            bbox = draw.textbbox((0, 0), test_line, font=font)
+            if (bbox[2] - bbox[0]) <= max_width:
+                current_line = test_line
+            else:
+                lines.append(current_line)
+                current_line = word
+        if current_line:
+            lines.append(current_line)
+    return lines
+
+def create_summary_banner(title, daily_summary, indicators=None):
     """
-    브리핑 데이터를 프리미엄 디자인의 완전한 HTML 이메일 문서로 변환합니다.
-    카테고리별 배지, 경제 지표 테이블, 원문 링크를 포함한 통합 뷰를 생성합니다.
+    Pillow(PIL)를 사용하여 프리미엄 다크 테마의 일일 브리핑 요약 배너 이미지를 동적 생성합니다.
+    (해상도: 1200x630, 고화질 JPEG)
+    """
+    width, height = 1200, 630
+    img = Image.new('RGB', (width, height), (15, 23, 42))
+    draw = ImageDraw.Draw(img)
+
+    # 1. 배경 그라데이션 및 네온 발광 효과
+    for y in range(height):
+        ratio = y / height
+        r = int(15 + (49 - 15) * ratio * 0.7)
+        g = int(23 + (46 - 23) * ratio * 0.7)
+        b = int(42 + (129 - 42) * ratio * 0.8)
+        draw.line([(0, y), (width, y)], fill=(r, g, b))
+
+    # 부드러운 발광 오버레이
+    overlay = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+    overlay_draw = ImageDraw.Draw(overlay)
+    overlay_draw.ellipse([850, -100, 1350, 400], fill=(99, 102, 241, 40))
+    overlay_draw.ellipse([-100, 350, 400, 850], fill=(5, 150, 105, 30))
+    overlay_draw.ellipse([500, 150, 1100, 750], fill=(37, 99, 235, 25))
+    img.paste(Image.alpha_composite(Image.new('RGBA', (width, height), (0,0,0,0)), overlay).convert('RGB'), (0,0), overlay)
+
+    draw = ImageDraw.Draw(img)
+
+    # 2. 상단 배지 바 (날짜 및 에이전트 인텔리전스 배지)
+    now_kst = datetime.now(KST)
+    date_str = now_kst.strftime('%Y.%m.%d')
+    weekday_kr = ['월', '화', '수', '목', '금', '토', '일'][now_kst.weekday()]
+
+    badge_font = _get_system_font(17, bold=True)
+    draw.rounded_rectangle([60, 45, 395, 85], radius=20, fill=(30, 41, 59), outline=(99, 102, 241), width=2)
+    draw.ellipse([82, 60, 94, 72], fill=(99, 102, 241))
+    draw.text((106, 53), 'DAILY BRIEFING INTELLIGENCE', fill=(199, 210, 254), font=badge_font)
+
+    draw.rounded_rectangle([415, 45, 605, 85], radius=20, fill=(30, 41, 59), outline=(71, 85, 105), width=1)
+    draw.text((438, 53), f'{date_str} ({weekday_kr})', fill=(226, 232, 240), font=badge_font)
+
+    # 3. 메인 타이틀
+    title_font = _get_system_font(34, bold=True)
+    display_title = (title or '오늘의 일일 브리핑 & 모닝 인텔리전스').replace('📢', '').replace('✨', '').strip()
+    if len(display_title) > 36:
+        display_title = display_title[:33] + '...'
+    draw.text((60, 110), display_title, fill=(255, 255, 255), font=title_font)
+
+    # 4. 오늘의 1문장 핵심 요약 카드
+    card_top = 180
+    card_bottom = 440
+    draw.rounded_rectangle([60, card_top, 1140, card_bottom], radius=16, fill=(30, 41, 59), outline=(99, 102, 241), width=2)
+    # 카드 좌측 인디고 악센트 바
+    draw.rounded_rectangle([60, card_top, 72, card_bottom], radius=4, fill=(99, 102, 241))
+
+    card_label_font = _get_system_font(19, bold=True)
+    draw.text((95, card_top + 22), "TODAY'S KEY SUMMARY  |  오늘의 핵심 1문장 요약", fill=(165, 180, 252), font=card_label_font)
+
+    summary_font = _get_system_font(24, bold=False)
+    wrapped_lines = _wrap_text_to_lines(daily_summary, summary_font, 990, draw)
+    y_text = card_top + 70
+    for line in wrapped_lines[:4]:
+        draw.text((95, y_text), line, fill=(241, 245, 249), font=summary_font)
+        y_text += 38
+
+    # 5. 하단 4대 섹션 하이라이트 미니 카드
+    mini_top = 465
+    mini_height = 110
+    mini_width = 252
+    spacing = 20
+    x_start = 60
+
+    sections_info = [
+        ('거시 경제 · 주요 지표', '#059669', '코스피 · 환율 · 금리 · 주요 기사'),
+        ('기업 · 산업 동향', '#2563EB', '실적 발표 · M&A · 신사업 전략'),
+        ('AX · AI 혁신 & 로봇', '#6366F1', 'AI 모델 · 산업 자동화 · 신기술'),
+        ('주요 스포츠 결과', '#EA580C', '국내외 경기 스코어 · 승패 기록')
+    ]
+
+    sec_title_font = _get_system_font(17, bold=True)
+    sec_desc_font = _get_system_font(13, bold=False)
+
+    for i, (stitle, color_hex, sdesc) in enumerate(sections_info):
+        x = x_start + i * (mini_width + spacing)
+        cr = int(color_hex[1:3], 16)
+        cg = int(color_hex[3:5], 16)
+        cb = int(color_hex[5:7], 16)
+        draw.rounded_rectangle([x, mini_top, x + mini_width, mini_top + mini_height], radius=12, fill=(24, 33, 47), outline=(cr, cg, cb), width=1)
+        draw.rounded_rectangle([x + 12, mini_top + 12, x + mini_width - 12, mini_top + 42], radius=6, fill=(cr//3, cg//3, cb//3))
+        draw.text((x + 20, mini_top + 17), stitle, fill=(cr, cg, cb), font=sec_title_font)
+        draw.text((x + 16, mini_top + 55), sdesc, fill=(148, 163, 184), font=sec_desc_font)
+
+    buf = io.BytesIO()
+    img.save(buf, format='JPEG', quality=92)
+    return buf.getvalue()
+
+def generate_summary_image(ai_engine, briefing_data, indicators=None):
+    """
+    일일 요약 이미지를 생성합니다.
+    Gemini 이미지 API 호출을 우선 시도하고, 오류 또는 쿼터 제한 시 고화질 인포그래픽 배너 생성기로 자동 폴백합니다.
     """
     title = briefing_data.get("title", "오늘의 일일 브리핑")
+    daily_summary = briefing_data.get("daily_summary") or briefing_data.get("short_summary_for_sns") or ""
+    image_prompt = briefing_data.get("image_prompt", "")
+
+    logger.info("일일 요약 이미지 생성 시작...")
+
+    # 1. Gemini Image Generation 시도
+    if ai_engine and ai_engine.client and image_prompt:
+        for model_name in ['gemini-2.5-flash-image', 'gemini-3.1-flash-image']:
+            try:
+                logger.info(f"Gemini 이미지 생성 시도: {model_name}")
+                resp = ai_engine.client.models.generate_content(
+                    model=model_name,
+                    contents=image_prompt
+                )
+                if resp and resp.candidates and resp.candidates[0].content and resp.candidates[0].content.parts:
+                    for part in resp.candidates[0].content.parts:
+                        if hasattr(part, 'inline_data') and part.inline_data and part.inline_data.data:
+                            logger.info(f"Gemini AI 생성 이미지 획득 성공 ({model_name})")
+                            img_bytes = part.inline_data.data
+                            try:
+                                with open("daily_summary_latest.jpg", "wb") as f:
+                                    f.write(img_bytes)
+                            except Exception:
+                                pass
+                            return img_bytes
+            except Exception as e:
+                logger.warning(f"Gemini 이미지 모델({model_name}) 호출 실패, 인포그래픽 배너로 폴백: {e}")
+                break
+
+    # 2. 동적 인포그래픽 요약 배너 생성 (PIL Fallback)
+    try:
+        logger.info("고화질 인포그래픽 일일 요약 배너 생성 중...")
+        banner_bytes = create_summary_banner(title, daily_summary, indicators)
+        try:
+            with open("daily_summary_latest.jpg", "wb") as f:
+                f.write(banner_bytes)
+        except Exception:
+            pass
+        logger.info(f"일일 요약 이미지 생성 완료 (크기: {len(banner_bytes):,} bytes)")
+        return banner_bytes
+    except Exception as e:
+        logger.error(f"인포그래픽 배너 생성 중 에러 발생: {e}")
+        return None
+
+
+def format_briefing_to_html(briefing_data, indicators=None, has_image=True):
+    """
+    브리핑 데이터를 프리미엄 디자인의 완전한 HTML 이메일 문서로 변환합니다.
+    최상단에 일일 요약 이미지와 1문장 핵심 요약을 배치하고,
+    글로벌 경제 지표 테이블, 카테고리별 섹션 및 원문 링크를 렌더링합니다.
+    """
+    title = briefing_data.get("title", "오늘의 일일 브리핑")
+    daily_summary = briefing_data.get("daily_summary") or briefing_data.get("short_summary_for_sns") or ""
     sections = briefing_data.get("sections", [])
-    closing = briefing_data.get("closing_comment", "")
     now_kst = datetime.now(KST)
     today_str = now_kst.strftime("%Y년 %m월 %d일")
     weekday_kr = ["월", "화", "수", "목", "금", "토", "일"]
@@ -543,15 +743,33 @@ def format_briefing_to_html(briefing_data, indicators=None):
 <div style="max-width: 640px; margin: 20px auto; background-color: #FFFFFF; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); overflow: hidden;">
 
   <!-- ===== 헤더 ===== -->
-  <div style="background: linear-gradient(135deg, #1E293B 0%, #334155 100%); padding: 32px 28px; text-align: center;">
+  <div style="background: linear-gradient(135deg, #1E293B 0%, #334155 100%); padding: 30px 24px; text-align: center;">
     <h1 style="color: #FFFFFF; font-size: 21px; margin: 0 0 10px 0; font-weight: 700; line-height: 1.4;">📢 {title}</h1>
     <span style="display: inline-block; background-color: rgba(255,255,255,0.15); color: #CBD5E1; font-size: 13px; padding: 5px 16px; border-radius: 20px; letter-spacing: 0.3px;">{today_str} ({today_weekday})</span>
   </div>
 
   <!-- ===== 본문 영역 ===== -->
-  <div style="padding: 28px 24px;">""")
+  <div style="padding: 24px 20px;">""")
 
-    # ── 경제 지표 테이블 ──
+    # ── 1. 일일 요약 이미지 (최상단) ──
+    if has_image:
+        parts.append("""
+    <!-- 일일 요약 이미지 섹션 -->
+    <div style="margin-bottom: 20px; text-align: center;">
+      <img src="cid:summary_image" alt="오늘의 일일 브리핑 요약" style="width: 100%; max-width: 600px; height: auto; border-radius: 10px; display: block; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin: 0 auto;" />
+    </div>""")
+
+    # ── 2. 오늘의 1문장 핵심 요약 (최상단) ──
+    if daily_summary:
+        summary_html = daily_summary.replace("\n", "<br>")
+        parts.append(f"""
+    <!-- 오늘의 1문장 핵심 요약 카드 -->
+    <div style="margin-bottom: 26px; padding: 18px 20px; background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%); border-radius: 10px; border-left: 5px solid #6366F1; box-shadow: 0 2px 8px rgba(99, 102, 241, 0.08);">
+      <div style="font-size: 13px; font-weight: 700; color: #4F46E5; margin-bottom: 6px; letter-spacing: 0.5px;">✨ 오늘의 1문장 핵심 요약 (KEY TAKEAWAY)</div>
+      <div style="font-size: 15px; font-weight: 700; color: #1E293B; line-height: 1.6;">{summary_html}</div>
+    </div>""")
+
+    # ── 3. 글로벌 주요 경제 지표 테이블 ──
     if indicators:
         parts.append("""
     <!-- 경제 지표 섹션 -->
@@ -586,7 +804,7 @@ def format_briefing_to_html(briefing_data, indicators=None):
     </div>
     <hr style="border: 0; border-top: 1px solid #E2E8F0; margin: 0 0 24px 0;">""")
 
-    # ── 카테고리별 섹션 ──
+    # ── 4. 카테고리별 섹션 ──
     for sec in sections:
         category = sec.get("category", "기타")
         items = sec.get("items", [])
@@ -646,15 +864,9 @@ def format_briefing_to_html(briefing_data, indicators=None):
         parts.append("""
     </div>""")
 
-    # ── 마무리 코멘트 ──
-    if closing:
-        closing_html = closing.replace("\n", "<br>")
-        parts.append(f"""
-    <hr style="border: 0; border-top: 1px solid #E2E8F0; margin: 24px 0;">
-    <p style="font-size: 14px; color: #64748B; font-style: italic; line-height: 1.7; text-align: center; margin: 0;">{closing_html}</p>""")
-
-    # ── 푸터 ──
+    # ── 5. 푸터 ──
     parts.append(f"""
+    <hr style="border: 0; border-top: 1px solid #E2E8F0; margin: 24px 0 16px 0;">
   </div>
 
   <!-- ===== 푸터 ===== -->
@@ -669,9 +881,10 @@ def format_briefing_to_html(briefing_data, indicators=None):
     return "\n".join(parts)
 
 
-def send_email(title, html_body):
+def send_email(title, html_body, image_bytes=None):
     """
     SMTP 서버를 통해 개인 수신 이메일로 뉴스레터 브리핑을 발송합니다.
+    일일 요약 이미지가 제공된 경우 MIME multipart/related 인라인 첨부(Content-ID: <summary_image>)로 결합합니다.
     """
     smtp_server = _clean_env_val(os.environ.get("SMTP_SERVER")) or "smtp.gmail.com"
     try:
@@ -697,11 +910,27 @@ def send_email(title, html_body):
         
     today_str = datetime.now(KST).strftime("%Y-%m-%d")
     
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"📬 [Daily Briefing] {today_str} 모닝 인텔리전스 리포트 - {title}"
-    msg["From"] = f"Daily Intelligence Agent <{sender_email}>"
-    msg["To"] = ", ".join(recipients)
-    msg.attach(MIMEText(html_body, "html", "utf-8"))
+    # MIME 구조: multipart/related (HTML 본문 + 인라인 첨부 이미지)
+    msg_root = MIMEMultipart("related")
+    msg_root["Subject"] = f"📬 [Daily Briefing] {today_str} 모닝 인텔리전스 리포트 - {title}"
+    msg_root["From"] = f"Daily Intelligence Agent <{sender_email}>"
+    msg_root["To"] = ", ".join(recipients)
+
+    msg_alt = MIMEMultipart("alternative")
+    msg_root.attach(msg_alt)
+
+    msg_alt.attach(MIMEText(html_body, "html", "utf-8"))
+
+    # 일일 요약 이미지 인라인 첨부
+    if image_bytes:
+        try:
+            img_part = MIMEImage(image_bytes, "jpeg")
+            img_part.add_header("Content-ID", "<summary_image>")
+            img_part.add_header("Content-Disposition", "inline", filename="daily_summary.jpg")
+            msg_root.attach(img_part)
+            logger.info("이메일 인라인 요약 이미지 첨부 완료 (Content-ID: <summary_image>)")
+        except Exception as e:
+            logger.warning(f"이미지 MIME 첨부 실패: {e}")
 
     try:
         if smtp_port == 465:
@@ -712,7 +941,7 @@ def send_email(title, html_body):
             
         with server:
             server.login(sender_email, sender_password)
-            server.sendmail(sender_email, recipients, msg.as_string())
+            server.sendmail(sender_email, recipients, msg_root.as_string())
             logger.info(f"✅ 수신 이메일 발송 완료 -> {', '.join(recipients)}")
         return True
     except Exception as e:
@@ -769,7 +998,7 @@ def main():
     naver_client_id = _clean_env_val(os.getenv("NAVER_CLIENT_ID"))
     naver_client_secret = _clean_env_val(os.getenv("NAVER_CLIENT_SECRET"))
     
-    keywords_str = _clean_env_val(os.getenv("NEWS_KEYWORDS", "인공지능, 빅테크, IT 트렌드, 경제 증시, 국제 뉴스, 국내 정치, 스포츠"))
+    keywords_str = _clean_env_val(os.getenv("NEWS_KEYWORDS", "인공지능, 빅테크, IT 트렌드, 거시 경제, 금융 증시, 금리 환율 부동산, 국제 정세, 국내 정치, 스포츠 경기 결과, 해외축구 손흥민 KBO"))
     keywords = [k.strip() for k in keywords_str.split(",") if k.strip()]
     
     slack_webhook = _clean_env_val(os.getenv("SLACK_WEBHOOK_URL"))
@@ -817,6 +1046,10 @@ def main():
 
     logger.info(f"AI 브리핑 생성 성공: '{briefing.get('title')}'")
     
+    # 4.5단계: 일일 요약 이미지 생성 (AI 생성 시도 + 고화질 인포그래픽 배너 폴백)
+    logger.info("4.5단계: 일일 요약 이미지 생성 시작...")
+    image_bytes = generate_summary_image(ai, briefing, indicators)
+
     # 연관 기사 복원 및 매핑 진행
     unique_map = {art["link"]: art for art in unique_articles}
     for section in briefing.get("sections", []):
@@ -831,26 +1064,31 @@ def main():
     logger.info(f"생성된 섹션: {', '.join(section_names)}")
 
     # 5단계 전송
-    sns_text = briefing.get("short_summary_for_sns", "")
     title = briefing.get("title", "오늘의 일일 브리핑")
+    daily_summary = briefing.get("daily_summary") or ""
+    sns_text = briefing.get("short_summary_for_sns", "")
+    
+    # 메신저 본문 구성: 1문장 핵심 요약을 최상단에 배치
+    messenger_body = f"📢 *{title}*\n\n✨ *오늘의 핵심 요약:*\n{daily_summary}\n\n{sns_text}" if daily_summary else f"📢 *{title}*\n\n{sns_text}"
     
     sent_list = []
     
     if slack_webhook and sns_text:
-        if send_slack_message(slack_webhook, f"📢 *{title}*\n\n{sns_text}"):
+        if send_slack_message(slack_webhook, messenger_body):
             sent_list.append("Slack")
             
     if telegram_token and telegram_chat_id and sns_text:
-        if send_telegram_message(telegram_token, telegram_chat_id, f"📢 {title}\n\n{sns_text}"):
+        if send_telegram_message(telegram_token, telegram_chat_id, messenger_body):
             sent_list.append("Telegram")
             
     if discord_webhook and sns_text:
-        if send_discord_message(discord_webhook, f"📢 **{title}**\n\n{sns_text}"):
+        discord_body = messenger_body.replace("*", "**")
+        if send_discord_message(discord_webhook, discord_body):
             sent_list.append("Discord")
             
-    # 이메일 발송 (프리미엄 HTML 통합 뷰)
-    html_body = format_briefing_to_html(briefing, indicators)
-    if send_email(title, html_body):
+    # 이메일 발송 (최상단 요약 이미지 + 1문장 핵심 요약 + 경제 지표 + 6대 섹션)
+    html_body = format_briefing_to_html(briefing, indicators, has_image=(image_bytes is not None))
+    if send_email(title, html_body, image_bytes=image_bytes):
         sent_list.append("Email")
 
     if sent_list:
@@ -862,3 +1100,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
