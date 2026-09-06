@@ -281,23 +281,34 @@ def cluster_and_deduplicate_articles(articles, similarity_threshold=0.25):
 # ==========================================
 # 3단계: 요약 & 분석 (AI Engine — google.genai SDK)
 # ==========================================
+# ==========================================
+# 3단계: 요약 & 분석 (AI Engine — google.genai SDK)
+# ==========================================
+class RelatedCompany(BaseModel):
+    name: str = Field(description="관련 기업명 (예: SK하이닉스, 엔비디아, 현대차, 한화에어로스페이스 등)")
+    ticker: Optional[str] = Field(default="", description="종목 코드 또는 글로벌 티커 (예: 000660, NVDA, 비상장 등)")
+    relevance: str = Field(description="해당 기업이 이 이슈/정책/기술과 왜 직접적으로 관련 있는지, 실질적인 수혜/리스크/비즈니스 연관성을 1~2문장으로 명확히 분석")
+
 class BriefingItem(BaseModel):
-    headline: str = Field(description="핵심 요약 제목 (기사 제목을 그대로 쓰지 말고 간결히 재구성)")
-    summary: str = Field(description="단 1문장 핵심 요약 (출력 토큰 제한을 넘지 않기 위해 요약은 반드시 1문장이어야 합니다)")
-    impact: str = Field(description="시사점/파급효과 1줄")
+    headline: str = Field(description="핵심 헤드라인 (단순 기사 제목 복사가 아닌 사건의 본질과 구조적 파급력을 압축한 지적 헤드라인)")
+    summary: str = Field(description="핵심 팩트 요약 (무슨 일이 일어났는지 핵심 팩트를 1~2문장으로 명확히 전달)")
+    impact: str = Field(description="심층 인사이트 및 파급효과 ('Why It Matters & So What?' - 산업 밸류체인, 시장 가격, 기업 실적에 미칠 실질적 영향 및 구조적 시사점을 2문장 내외로 날카롭게 분석. 상투적 표현 절대 금지)")
+    related_companies: List[RelatedCompany] = Field(default_factory=list, description="이 이슈와 직접적/간접적으로 연관된 국내외 주요 수혜/피해/관련 기업 목록 (최대 2~3개) 및 실질적 연관성 분석")
     source_url: str = Field(description="원문 기사 URL, 경제 지표 요약 항목은 빈 문자열")
-    source_name: str = Field(description="출처 언론사 이름 (예: 연합뉴스, 전자신문 등), 제공된 기사의 출처 정보를 참고하여 작성하세요. 경제 지표 요약 항목은 빈 문자열")
+    source_name: str = Field(description="출처 언론사 이름 (예: 연합뉴스, 전자신문 등). 경제 지표 요약 항목은 빈 문자열")
 
 class BriefingSection(BaseModel):
     category: str = Field(description="카테고리명 (거시 경제 & 주요 지표, 주요 기업 동향, AX · RX · 디지털 트윈 & 로보틱스, 국제 정세, 국내 정치, 스포츠 중 하나)")
     items: List[BriefingItem]
 
 class DailyBriefing(BaseModel):
-    title: str = Field(description="브리핑 전체 제목")
-    daily_summary: str = Field(description="오늘 브리핑 전체를 관통하는 핵심 1문장 요약 (가장 먼저 노출될 핵심 하이라이트)")
-    image_prompt: Optional[str] = Field(default="", description="오늘의 핵심 테마를 표현하는 영문 이미지 생성 프롬프트 (예: Futuristic modern 3D infographic illustration representing global economy, AI robotics innovation, and sports results, 8k render)")
+    title: str = Field(description="브리핑 전체 제목 (예: 2026년 9월 7일 모닝 인텔리전스 리포트)")
+    daily_summary: str = Field(description="오늘 글로벌 시장과 산업 전체를 관통하는 핵심 총평 단 1문장 (최상단 하이라이트)")
+    executive_insights: List[str] = Field(description="오늘 하루 전체 뉴스를 종합 분석하여 도출한 3대 핵심 전략적 관전 포인트 (Executive Strategic Insights 3개 항목)")
+    key_watchlist_companies: List[str] = Field(default_factory=list, description="오늘 브리핑 전체에서 가장 주목해야 할 핵심 관련 기업 3~5개 이름 (예: ['SK하이닉스', '엔비디아', '현대차'])")
+    image_prompt: Optional[str] = Field(default="", description="오늘의 핵심 테마를 표현하는 영문 이미지 생성 프롬프트")
     sections: List[BriefingSection]
-    closing_comment: Optional[str] = Field(default="", description="마무리 코멘트 단 1문장")
+    closing_comment: Optional[str] = Field(default="", description="전문가적 관점의 향후 관전 포인트 및 마무리 코멘트")
     short_summary_for_sns: str = Field(description="전체 브리핑 200자 내외 요약 (모바일/메신저 전송용)")
 
 
@@ -317,7 +328,7 @@ class AIEngine:
     def _get_available_models(self):
         if self._models_cache is None:
             try:
-                self._models_cache = [m.name for m in self.client.models.list() if hasattr(m, 'name')]
+                self._models_cache = [m.name.replace('models/', '') for m in self.client.models.list() if hasattr(m, 'name')]
             except Exception as e:
                 logger.warning(f"모델 리스트 동적 조회 실패: {e}")
                 self._models_cache = []
@@ -325,10 +336,14 @@ class AIEngine:
         available = set(self._models_cache)
         candidates = []
         for p in _PRIORITY_MODELS:
-            full_name = f"models/{p}"
-            if not available or full_name in available or p in available:
-                candidates.append(p)
-        return candidates or ['gemini-3.6-flash', 'gemini-1.5-flash']
+            clean_p = p.replace('models/', '')
+            if not available or clean_p in available:
+                candidates.append(clean_p)
+        # 신규 출시된 Gemini 모델 동적 추가
+        for am in self._models_cache:
+            if am not in candidates and ('flash' in am or 'pro' in am) and 'image' not in am and 'tts' not in am and 'preview' not in am:
+                candidates.append(am)
+        return candidates or ['gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-1.5-flash']
 
     def generate_briefing(self, articles, indicators=None, additional_notes="", max_retries=2):
         if not self.client:
@@ -350,9 +365,11 @@ class AIEngine:
                 indicators_text += f"- {name}: {val['price']:,.2f} (전일비 {val['change']:+,.2f}, {val['pct']:+.2f}%)\n"
             indicators_text += "\n"
 
-        prompt = f"""당신은 일일 뉴스 브리핑 편집장입니다.
-오늘 날짜는 {today_str}입니다. 반드시 오늘 날짜({today_str}) 기준으로 브리핑 전체 제목과 원고를 작성해 주세요.
-아래의 경제 지표 데이터와 뉴스 기사 목록을 분석하여, 카테고리별로 분류하고 핵심 내용을 요약한 브리핑 원고를 JSON 형식으로 작성해 주세요.
+        prompt = f"""당신은 글로벌 탑티어 전략 컨설팅 펌(맥킨지, BCG) 및 최고급 투자기관의 [수석 경제·산업 전략 애널리스트(Chief Strategy Analyst)]입니다.
+오늘 날짜는 {today_str}입니다. 반드시 오늘 날짜({today_str}) 기준으로 브리핑 전체 제목과 최고 수준의 전략 인텔리전스 리포트를 JSON 형식으로 작성해 주세요.
+
+당신의 핵심 임무는 단순한 뉴스 팩트 요약(받아쓰기)이 아닙니다.
+개별 사건 이면에 숨겨진 구조적 변화(Why It Matters), 산업 밸류체인 및 시장에 미칠 실질적 파급효과(So What?), 그리고 직접적으로 연관된 핵심 기업(수혜주, 피해주, 공급망 파트너)의 비즈니스적 인과관계를 날카롭고 깊이 있게 도출하는 것입니다.
 
 {indicators_text}[뉴스 기사 목록]
 {articles_text}
@@ -361,32 +378,39 @@ class AIEngine:
 [카테고리 분류 규칙]
 반드시 다음 6개 카테고리를 모두 포함하여 작성하세요 (기사가 부족하거나 없는 카테고리도 절대 생략하지 말고 반드시 포함해야 합니다):
 1. "거시 경제 & 주요 지표" - 경제, 금융, 환율, 주식시장, 금리, 부동산, 물가, 통화정책 등 주요 경제 기사 (경제 지표 요약 외에도 실질적인 경제 관련 뉴스 기사 다수 포함)
-2. "주요 기업 동향" - 기업 투자, M&A, 실적 발표, 신사업, 경영 전략 관련
+2. "주요 기업 동향" - 기업 투자, M&A, 실적 발표, 신사업, 경영 전략 관련(해외 IT 빅테크 및 국내 삼성, SK, 현대차, LG 그룹 등 주요 기업)
 3. "AX · RX · 디지털 트윈 & 로보틱스" - AI, 로봇, 디지털 트윈, 자동화, 기술 혁신, 신기술 적용 사례 관련
 4. "국제 정세" - 해외 정치, 외교, 무역, 지정학적 이슈 관련
 5. "국내 정치" - 국내 정책, 입법, 선거, 주요 정치 현안 관련
 6. "스포츠" - 국내외 주요 스포츠(프로야구 KBO, 해외축구/손흥민/EPL, 메이저리그 MLB, K리그, 골프, 농구 등)의 최신 경기 결과, 스코어(득점/실점/승패), 주요 기록 및 핵심 하이라이트 (IT/과학 기술 뉴스는 제외하고 온전한 스포츠 경기 결과 및 소식만 포함)
 
-[작성 지침]
-1. 모든 카테고리(6개 분야)가 결과에 반드시 포함되어야 하며, 각 카테고리마다 아이템이 최소 3개 이상 작성되어야 합니다.
+[심층 인사이트 및 작성 지침]
+1. ★상투적이고 무의미한 표현 절대 금지★:
+   - "기대된다", "주목된다", "관심이 쏠린다", "경쟁력 강화가 예상된다", "귀추가 주목된다" 같은 진부한 클리셰 문구는 절대 쓰지 마십시오.
+   - 대신 "원인 -> 구조적 메커니즘 -> 밸류체인/가격/실적에 미치는 구체적 영향"의 인과관계를 논리적으로 기술하십시오.
+2. ★관련 기업 분석(related_companies) 필수 작성★:
+   - 각 기사 항목마다 해당 이슈와 연관된 국내외 주요 기업(최대 2~3개)을 명시하고, 그 기업이 왜 이 뉴스와 연관되어 있는지(수혜 요인, 원가 부담, 고객사 납품, 시장 점유율 경쟁 등) 구체적인 이유를 반드시 1~2문장으로 기술하십시오.
+3. ★최상단 3대 핵심 전략 인사이트(executive_insights) & 주목 기업(key_watchlist_companies)★:
+   - `executive_insights`는 오늘 하루 뉴스 전체를 가로지르는 3대 거시적/산업적 관전 포인트(Trend & Structural Shift)를 전문 애널리스트 관점에서 깊이 있게 제시하십시오.
+   - `key_watchlist_companies`는 오늘 브리핑 전체에서 가장 핵심적으로 영향받는 대표 기업 3~5개 이름을 배열로 제시하십시오.
+4. 모든 카테고리(6개 분야)가 결과에 반드시 포함되어야 하며, 각 카테고리마다 아이템이 최소 3개 이상 작성되어야 합니다.
    - "거시 경제 & 주요 지표" 카테고리는 제공된 경제 지표 요약(첫 번째 아이템) 외에도 금리, 환율, 주식시장, 부동산, 물가, 통화정책 등 실질적인 경제 기사를 최소 3개 이상 추가하여 총 4개 이상의 아이템으로 구성하세요.
    - "스포츠" 카테고리는 단순 행사나 칼럼이 아닌 당일/전일 실제 주요 경기 결과, 스코어(점수/승패), 주요 선수 활약상 및 순위 변동 등 실제 경기 결과를 반드시 구체적인 스코어/내용과 함께 포함하여 작성하세요.
-   - 만약 특정 분야(예: 스포츠, 국내 정치 등)에 해당하는 뉴스 기사가 부족한 경우, 제공된 뉴스 기사 중 연관된 각도를 찾아서 해석하거나 최신 트렌드를 유추하여 각 카테고리당 최소 3개 이상의 아이템을 반드시 만드십시오. 빈 카테고리나 3개 미만의 아이템은 허용되지 않습니다.
-2. `daily_summary` 필드에는 오늘 하루 브리핑 전체를 관통하는 핵심 1문장 요약(가장 강력하고 통찰력 있는 단 1문장)을 반드시 작성하세요. 이 문장은 브리핑 최상단에 핵심 하이라이트로 노출됩니다.
-3. `image_prompt` 필드에는 오늘 브리핑의 주요 테마(경제, AI 혁신, 스포츠 등)를 시각화할 수 있는 세련된 영문 이미지 생성 프롬프트(1~2문장)를 작성하세요.
-4. 같은 사건에 대한 중복 기사는 하나로 통합하고, 가장 대표적인 원문 링크를 사용하세요.
-5. 각 기사 항목에 반드시 원문 기사 링크(source_url)를 포함하세요. 링크는 뉴스 기사 목록에 있는 링크를 그대로 사용하세요. (부족해서 자체적으로 분석/재구성한 항목의 경우, 가장 연관성이 높은 원본 기사의 링크를 source_url로 지정하세요. 경제 지표 요약 항목은 빈 문자열로 하십시오.)
-6. 모든 섹션의 각 항목에 시사점/파급효과(impact)를 1줄로 포함하세요. 특히 "AX · RX · 디지털 트윈 & 로보틱스" 섹션은 필수입니다.
-7. headline은 기사 제목을 그대로 쓰지 말고, 핵심을 간결하게 재구성하세요.
-8. summary는 반드시 단 1문장으로만 요약하세요. (8192 출력 토큰 한계를 넘지 않기 위해 요약은 반드시 1문장이어야 합니다.)
-9. short_summary_for_sns는 전체 브리핑을 200자 내외로 요약한 모바일 알림용 텍스트입니다.
-10. 경제 지표 데이터가 제공된 경우, "거시 경제 & 주요 지표" 섹션의 첫 번째 아이템으로 지표 요약을 포함하세요.
+   - 만약 특정 분야에 해당하는 뉴스 기사가 부족한 경우, 제공된 뉴스 기사 중 연관된 각도를 찾아서 해석하거나 최신 트렌드를 유추하여 각 카테고리당 최소 3개 이상의 아이템을 반드시 만드십시오. 빈 카테고리나 3개 미만의 아이템은 허용되지 않습니다.
+5. 같은 사건에 대한 중복 기사는 하나로 통합하고, 가장 대표적인 원문 링크를 사용하세요.
+6. 각 기사 항목에 반드시 원문 기사 링크(source_url)를 포함하세요. 링크는 뉴스 기사 목록에 있는 링크를 그대로 사용하세요. (경제 지표 요약 항목은 빈 문자열로 하십시오.)
 
 응답은 반드시 아래 JSON 스키마를 따르며, 마크다운 코드 블록 없이 순수 JSON만 출력하세요:
 
 {{
   "title": "String (브리핑 전체 제목)",
-  "daily_summary": "String (오늘 브리핑 전체를 관통하는 핵심 1문장 요약)",
+  "daily_summary": "String (오늘 브리핑 전체를 관통하는 핵심 총평 1문장)",
+  "executive_insights": [
+    "String (오늘의 1번째 핵심 전략 인사이트 - 맥락과 파급효과)",
+    "String (오늘의 2번째 핵심 전략 인사이트 - 밸류체인 및 시장 변화)",
+    "String (오늘의 3번째 핵심 전략 인사이트 - 향후 전개 시나리오)"
+  ],
+  "key_watchlist_companies": ["String (핵심 주목 기업 1)", "String (핵심 주목 기업 2)", "String (핵심 주목 기업 3)"],
   "image_prompt": "String (오늘의 테마를 표현하는 영문 이미지 생성 프롬프트)",
   "sections": [
     {{
@@ -394,15 +418,22 @@ class AIEngine:
       "items": [
         {{
           "headline": "String (핵심 요약 제목)",
-          "summary": "String (1문장 핵심 요약)",
-          "impact": "String (시사점/파급효과 1줄)",
+          "summary": "String (1~2문장 핵심 팩트 요약)",
+          "impact": "String (심층 인사이트 및 밸류체인/실적 파급효과 2문장 내외)",
+          "related_companies": [
+            {{
+              "name": "String (기업명)",
+              "ticker": "String (티커/종목코드)",
+              "relevance": "String (해당 기업과의 구체적 연관성 및 수혜/리스크 분석 1~2문장)"
+            }}
+          ],
           "source_url": "String (원문 기사 URL, 경제 지표 요약 항목은 빈 문자열)",
           "source_name": "String (출처 언론사 이름, 예: 연합뉴스, 전자신문 등. 경제 지표 요약 항목은 빈 문자열)"
         }}
       ]
     }}
   ],
-  "closing_comment": "String (마무리 코멘트 1문장)",
+  "closing_comment": "String (전문가적 관점의 마무리 총평 1문장)",
   "short_summary_for_sns": "String (200자 내외 SNS 요약)"
 }}"""
 
@@ -530,203 +561,61 @@ def _get_badge_style(category):
 
 
 # ==========================================
-# 3.5단계: 일일 요약 이미지 생성기 (Image Generator)
+# 3.5단계: 일일 요약 이미지 생성기 (AI Image Generator)
 # ==========================================
-def _get_system_font(size, bold=False):
-    """OS 환경(Windows, Linux/Ubuntu 등)에 맞는 최적의 폰트를 로드합니다."""
-    candidates = [
-        # Windows 맑은 고딕
-        'C:/Windows/Fonts/malgunbd.ttf' if bold else 'C:/Windows/Fonts/malgun.ttf',
-        'C:/Windows/Fonts/gulim.ttc',
-        # Linux / Ubuntu 나눔고딕
-        '/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf' if bold else '/usr/share/fonts/truetype/nanum/NanumGothic.ttf',
-        '/usr/share/fonts/truetype/nanum/NanumBarunGothicBold.ttf' if bold else '/usr/share/fonts/truetype/nanum/NanumBarunGothic.ttf',
-        '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf' if bold else '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
-    ]
-    for path in candidates:
-        if os.path.exists(path):
-            try:
-                return ImageFont.truetype(path, size)
-            except Exception:
-                pass
-    return ImageFont.load_default()
-
-def _wrap_text_to_lines(text, font, max_width, draw):
-    """텍스트를 지정된 최대 픽셀 너비에 맞춰 단어 단위로 줄바꿈합니다."""
-    lines = []
-    paragraphs = text.split('\n')
-    for paragraph in paragraphs:
-        if not paragraph:
-            continue
-        words = paragraph.split(' ')
-        current_line = words[0] if words else ''
-        for word in words[1:]:
-            test_line = current_line + ' ' + word
-            bbox = draw.textbbox((0, 0), test_line, font=font)
-            if (bbox[2] - bbox[0]) <= max_width:
-                current_line = test_line
-            else:
-                lines.append(current_line)
-                current_line = word
-        if current_line:
-            lines.append(current_line)
-    return lines
-
-def create_summary_banner(title, daily_summary, indicators=None):
-    """
-    Pillow(PIL)를 사용하여 프리미엄 다크 테마의 일일 브리핑 요약 배너 이미지를 동적 생성합니다.
-    (해상도: 1200x630, 고화질 JPEG)
-    """
-    width, height = 1200, 630
-    img = Image.new('RGB', (width, height), (15, 23, 42))
-    draw = ImageDraw.Draw(img)
-
-    # 1. 배경 그라데이션 및 네온 발광 효과
-    for y in range(height):
-        ratio = y / height
-        r = int(15 + (49 - 15) * ratio * 0.7)
-        g = int(23 + (46 - 23) * ratio * 0.7)
-        b = int(42 + (129 - 42) * ratio * 0.8)
-        draw.line([(0, y), (width, y)], fill=(r, g, b))
-
-    # 부드러운 발광 오버레이
-    overlay = Image.new('RGBA', (width, height), (0, 0, 0, 0))
-    overlay_draw = ImageDraw.Draw(overlay)
-    overlay_draw.ellipse([850, -100, 1350, 400], fill=(99, 102, 241, 40))
-    overlay_draw.ellipse([-100, 350, 400, 850], fill=(5, 150, 105, 30))
-    overlay_draw.ellipse([500, 150, 1100, 750], fill=(37, 99, 235, 25))
-    img.paste(Image.alpha_composite(Image.new('RGBA', (width, height), (0,0,0,0)), overlay).convert('RGB'), (0,0), overlay)
-
-    draw = ImageDraw.Draw(img)
-
-    # 2. 상단 배지 바 (날짜 및 에이전트 인텔리전스 배지)
-    now_kst = datetime.now(KST)
-    date_str = now_kst.strftime('%Y.%m.%d')
-    weekday_kr = ['월', '화', '수', '목', '금', '토', '일'][now_kst.weekday()]
-
-    badge_font = _get_system_font(17, bold=True)
-    draw.rounded_rectangle([60, 45, 395, 85], radius=20, fill=(30, 41, 59), outline=(99, 102, 241), width=2)
-    draw.ellipse([82, 60, 94, 72], fill=(99, 102, 241))
-    draw.text((106, 53), 'DAILY BRIEFING INTELLIGENCE', fill=(199, 210, 254), font=badge_font)
-
-    draw.rounded_rectangle([415, 45, 605, 85], radius=20, fill=(30, 41, 59), outline=(71, 85, 105), width=1)
-    draw.text((438, 53), f'{date_str} ({weekday_kr})', fill=(226, 232, 240), font=badge_font)
-
-    # 3. 메인 타이틀
-    title_font = _get_system_font(34, bold=True)
-    display_title = (title or '오늘의 일일 브리핑 & 모닝 인텔리전스').replace('📢', '').replace('✨', '').strip()
-    if len(display_title) > 36:
-        display_title = display_title[:33] + '...'
-    draw.text((60, 110), display_title, fill=(255, 255, 255), font=title_font)
-
-    # 4. 오늘의 1문장 핵심 요약 카드
-    card_top = 180
-    card_bottom = 440
-    draw.rounded_rectangle([60, card_top, 1140, card_bottom], radius=16, fill=(30, 41, 59), outline=(99, 102, 241), width=2)
-    # 카드 좌측 인디고 악센트 바
-    draw.rounded_rectangle([60, card_top, 72, card_bottom], radius=4, fill=(99, 102, 241))
-
-    card_label_font = _get_system_font(19, bold=True)
-    draw.text((95, card_top + 22), "TODAY'S KEY SUMMARY  |  오늘의 핵심 1문장 요약", fill=(165, 180, 252), font=card_label_font)
-
-    summary_font = _get_system_font(24, bold=False)
-    wrapped_lines = _wrap_text_to_lines(daily_summary, summary_font, 990, draw)
-    y_text = card_top + 70
-    for line in wrapped_lines[:4]:
-        draw.text((95, y_text), line, fill=(241, 245, 249), font=summary_font)
-        y_text += 38
-
-    # 5. 하단 4대 섹션 하이라이트 미니 카드
-    mini_top = 465
-    mini_height = 110
-    mini_width = 252
-    spacing = 20
-    x_start = 60
-
-    sections_info = [
-        ('거시 경제 · 주요 지표', '#059669', '코스피 · 환율 · 금리 · 주요 기사'),
-        ('기업 · 산업 동향', '#2563EB', '실적 발표 · M&A · 신사업 전략'),
-        ('AX · AI 혁신 & 로봇', '#6366F1', 'AI 모델 · 산업 자동화 · 신기술'),
-        ('주요 스포츠 결과', '#EA580C', '국내외 경기 스코어 · 승패 기록')
-    ]
-
-    sec_title_font = _get_system_font(17, bold=True)
-    sec_desc_font = _get_system_font(13, bold=False)
-
-    for i, (stitle, color_hex, sdesc) in enumerate(sections_info):
-        x = x_start + i * (mini_width + spacing)
-        cr = int(color_hex[1:3], 16)
-        cg = int(color_hex[3:5], 16)
-        cb = int(color_hex[5:7], 16)
-        draw.rounded_rectangle([x, mini_top, x + mini_width, mini_top + mini_height], radius=12, fill=(24, 33, 47), outline=(cr, cg, cb), width=1)
-        draw.rounded_rectangle([x + 12, mini_top + 12, x + mini_width - 12, mini_top + 42], radius=6, fill=(cr//3, cg//3, cb//3))
-        draw.text((x + 20, mini_top + 17), stitle, fill=(cr, cg, cb), font=sec_title_font)
-        draw.text((x + 16, mini_top + 55), sdesc, fill=(148, 163, 184), font=sec_desc_font)
-
-    buf = io.BytesIO()
-    img.save(buf, format='JPEG', quality=92)
-    return buf.getvalue()
-
 def generate_summary_image(ai_engine, briefing_data, indicators=None):
     """
-    일일 요약 이미지를 생성합니다.
-    Gemini 이미지 API 호출을 우선 시도하고, 오류 또는 쿼터 제한 시 고화질 인포그래픽 배너 생성기로 자동 폴백합니다.
+    Gemini AI 모델을 사용하여 일일 요약 이미지를 생성합니다.
+    AI 이미지 생성이 불가능하거나 오류 발생 시 None을 반환합니다 (인포그래픽 제외).
     """
-    title = briefing_data.get("title", "오늘의 일일 브리핑")
-    daily_summary = briefing_data.get("daily_summary") or briefing_data.get("short_summary_for_sns") or ""
     image_prompt = briefing_data.get("image_prompt", "")
 
-    logger.info("일일 요약 이미지 생성 시작...")
-
-    # 1. Gemini Image Generation 시도
-    if ai_engine and ai_engine.client and image_prompt:
-        for model_name in ['gemini-2.5-flash-image', 'gemini-3.1-flash-image']:
-            try:
-                logger.info(f"Gemini 이미지 생성 시도: {model_name}")
-                resp = ai_engine.client.models.generate_content(
-                    model=model_name,
-                    contents=image_prompt
-                )
-                if resp and resp.candidates and resp.candidates[0].content and resp.candidates[0].content.parts:
-                    for part in resp.candidates[0].content.parts:
-                        if hasattr(part, 'inline_data') and part.inline_data and part.inline_data.data:
-                            logger.info(f"Gemini AI 생성 이미지 획득 성공 ({model_name})")
-                            img_bytes = part.inline_data.data
-                            try:
-                                with open("daily_summary_latest.jpg", "wb") as f:
-                                    f.write(img_bytes)
-                            except Exception:
-                                pass
-                            return img_bytes
-            except Exception as e:
-                logger.warning(f"Gemini 이미지 모델({model_name}) 호출 실패, 인포그래픽 배너로 폴백: {e}")
-                break
-
-    # 2. 동적 인포그래픽 요약 배너 생성 (PIL Fallback)
-    try:
-        logger.info("고화질 인포그래픽 일일 요약 배너 생성 중...")
-        banner_bytes = create_summary_banner(title, daily_summary, indicators)
-        try:
-            with open("daily_summary_latest.jpg", "wb") as f:
-                f.write(banner_bytes)
-        except Exception:
-            pass
-        logger.info(f"일일 요약 이미지 생성 완료 (크기: {len(banner_bytes):,} bytes)")
-        return banner_bytes
-    except Exception as e:
-        logger.error(f"인포그래픽 배너 생성 중 에러 발생: {e}")
+    if not ai_engine or not ai_engine.client or not image_prompt:
         return None
 
+    logger.info("AI 일일 요약 이미지 생성 시도...")
+    candidates = ['gemini-2.5-flash-image', 'gemini-3.1-flash-image', 'gemini-3-pro-image']
+    
+    for model_name in candidates:
+        try:
+            logger.info(f"Gemini 이미지 생성 시도: {model_name}")
+            resp = ai_engine.client.models.generate_content(
+                model=model_name,
+                contents=image_prompt
+            )
+            if resp and resp.candidates and resp.candidates[0].content and resp.candidates[0].content.parts:
+                for part in resp.candidates[0].content.parts:
+                    if hasattr(part, 'inline_data') and part.inline_data and part.inline_data.data:
+                        logger.info(f"Gemini AI 생성 이미지 획득 성공 ({model_name})")
+                        img_bytes = part.inline_data.data
+                        try:
+                            with open("daily_summary_latest.jpg", "wb") as f:
+                                f.write(img_bytes)
+                        except Exception:
+                            pass
+                        return img_bytes
+        except Exception as e:
+            logger.warning(f"Gemini 이미지 모델({model_name}) 생성 실패: {e}")
+            break
 
-def format_briefing_to_html(briefing_data, indicators=None, has_image=True):
+    logger.info("AI 이미지 생성 미지원/실패로 이미지 없이 브리핑을 진행합니다.")
+    return None
+
+
+def format_briefing_to_html(briefing_data, indicators=None, has_image=False):
     """
-    브리핑 데이터를 프리미엄 디자인의 완전한 HTML 이메일 문서로 변환합니다.
-    최상단에 일일 요약 이미지와 1문장 핵심 요약을 배치하고,
-    글로벌 경제 지표 테이블, 카테고리별 섹션 및 원문 링크를 렌더링합니다.
+    브리핑 데이터를 최고급 전략 인텔리전스 리포트 HTML 이메일 문서로 변환합니다.
+    - 최상단: 브리핑 헤더 & 핵심 총평 & 오늘의 3대 전략 인사이트 & 핵심 주목 기업 (Watchlist)
+    - 글로벌 주요 경제 지표 테이블
+    - 6대 카테고리별 섹션: 팩트 요약, 심층 인사이트(Why It Matters), 관련 기업 & 밸류체인 분석, 원문 링크
     """
     title = briefing_data.get("title", "오늘의 일일 브리핑")
     daily_summary = briefing_data.get("daily_summary") or briefing_data.get("short_summary_for_sns") or ""
+    executive_insights = briefing_data.get("executive_insights", [])
+    watchlist_companies = briefing_data.get("key_watchlist_companies", [])
     sections = briefing_data.get("sections", [])
+    closing = briefing_data.get("closing_comment", "")
+    
     now_kst = datetime.now(KST)
     today_str = now_kst.strftime("%Y년 %m월 %d일")
     weekday_kr = ["월", "화", "수", "목", "금", "토", "일"]
@@ -737,36 +626,61 @@ def format_briefing_to_html(briefing_data, indicators=None, has_image=True):
     # ── HTML 시작 ──
     parts.append(f"""<html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin: 0; padding: 0; background-color: #F4F6F8; font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+<body style="margin: 0; padding: 0; background-color: #F1F5F9; font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', Arial, sans-serif; -webkit-font-smoothing: antialiased;">
 
 <!-- 외부 컨테이너 -->
-<div style="max-width: 640px; margin: 20px auto; background-color: #FFFFFF; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); overflow: hidden;">
+<div style="max-width: 660px; margin: 20px auto; background-color: #FFFFFF; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.08); overflow: hidden;">
 
   <!-- ===== 헤더 ===== -->
-  <div style="background: linear-gradient(135deg, #1E293B 0%, #334155 100%); padding: 30px 24px; text-align: center;">
+  <div style="background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%); padding: 32px 24px; text-align: center;">
+    <div style="display: inline-block; background-color: rgba(99, 102, 241, 0.25); color: #C7D2FE; font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 20px; margin-bottom: 10px; letter-spacing: 0.5px; border: 1px solid rgba(165, 180, 252, 0.3);">EXECUTIVE STRATEGIC INTELLIGENCE</div>
     <h1 style="color: #FFFFFF; font-size: 21px; margin: 0 0 10px 0; font-weight: 700; line-height: 1.4;">📢 {title}</h1>
-    <span style="display: inline-block; background-color: rgba(255,255,255,0.15); color: #CBD5E1; font-size: 13px; padding: 5px 16px; border-radius: 20px; letter-spacing: 0.3px;">{today_str} ({today_weekday})</span>
+    <span style="display: inline-block; color: #94A3B8; font-size: 13px; letter-spacing: 0.3px;">{today_str} ({today_weekday})</span>
   </div>
 
   <!-- ===== 본문 영역 ===== -->
   <div style="padding: 24px 20px;">""")
 
-    # ── 1. 일일 요약 이미지 (최상단) ──
+    # ── 1. 일일 요약 이미지 (생성된 경우만) ──
     if has_image:
         parts.append("""
-    <!-- 일일 요약 이미지 섹션 -->
-    <div style="margin-bottom: 20px; text-align: center;">
-      <img src="cid:summary_image" alt="오늘의 일일 브리핑 요약" style="width: 100%; max-width: 600px; height: auto; border-radius: 10px; display: block; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin: 0 auto;" />
+    <div style="margin-bottom: 22px; text-align: center;">
+      <img src="cid:summary_image" alt="오늘의 일일 브리핑 요약" style="width: 100%; max-width: 620px; height: auto; border-radius: 10px; display: block; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin: 0 auto;" />
     </div>""")
 
-    # ── 2. 오늘의 1문장 핵심 요약 (최상단) ──
-    if daily_summary:
-        summary_html = daily_summary.replace("\n", "<br>")
+    # ── 2. 오늘의 핵심 브리핑 총평 & 3대 전략 인사이트 (최상단) ──
+    if daily_summary or executive_insights:
+        summary_html = daily_summary.replace("\n", "<br>") if daily_summary else ""
+        margin_b = "14px" if executive_insights else "0"
         parts.append(f"""
-    <!-- 오늘의 1문장 핵심 요약 카드 -->
-    <div style="margin-bottom: 26px; padding: 18px 20px; background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%); border-radius: 10px; border-left: 5px solid #6366F1; box-shadow: 0 2px 8px rgba(99, 102, 241, 0.08);">
-      <div style="font-size: 13px; font-weight: 700; color: #4F46E5; margin-bottom: 6px; letter-spacing: 0.5px;">✨ 오늘의 1문장 핵심 요약 (KEY TAKEAWAY)</div>
-      <div style="font-size: 15px; font-weight: 700; color: #1E293B; line-height: 1.6;">{summary_html}</div>
+    <!-- 전략적 인텔리전스 총평 카드 -->
+    <div style="margin-bottom: 26px; padding: 20px 22px; background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%); border-radius: 12px; border-left: 5px solid #6366F1; box-shadow: 0 2px 8px rgba(99, 102, 241, 0.08);">
+      <div style="font-size: 12px; font-weight: 700; color: #4F46E5; margin-bottom: 6px; letter-spacing: 0.5px;">🎯 오늘의 핵심 브리핑 총평 (CORE THESIS)</div>
+      <div style="font-size: 15px; font-weight: 700; color: #1E293B; line-height: 1.6; margin-bottom: {margin_b};">{summary_html}</div>""")
+
+        if executive_insights:
+            parts.append("""
+      <div style="padding-top: 12px; border-top: 1px solid rgba(99, 102, 241, 0.2);">
+        <div style="font-size: 12px; font-weight: 700; color: #4338CA; margin-bottom: 8px;">💡 오늘의 3대 전략적 관전 포인트 (KEY STRATEGIC INSIGHTS)</div>""")
+            for idx, insight in enumerate(executive_insights[:3]):
+                clean_insight = str(insight).strip()
+                parts.append(f"""
+        <div style="font-size: 13px; color: #334155; line-height: 1.5; margin-bottom: 6px;">
+          <span style="font-weight: 700; color: #6366F1;">⚡ [{idx+1}]</span> {clean_insight}
+        </div>""")
+            parts.append("""
+      </div>""")
+
+        # 핵심 주목 기업 배지 (Watchlist)
+        if watchlist_companies:
+            badges_html = " ".join([f'<span style="display: inline-block; background-color: #FFFFFF; color: #312E81; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 6px; margin: 3px 4px 3px 0; border: 1px solid #C7D2FE; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">{c}</span>' for c in watchlist_companies[:5]])
+            parts.append(f"""
+      <div style="margin-top: 12px; padding-top: 10px; border-top: 1px dashed rgba(99, 102, 241, 0.2);">
+        <div style="font-size: 11px; font-weight: 700; color: #4338CA; margin-bottom: 6px;">🔥 오늘의 핵심 주목 기업 (KEY WATCHLIST)</div>
+        <div>{badges_html}</div>
+      </div>""")
+
+        parts.append("""
     </div>""")
 
     # ── 3. 글로벌 주요 경제 지표 테이블 ──
@@ -822,22 +736,48 @@ def format_briefing_to_html(briefing_data, indicators=None, has_image=True):
             headline = item.get("headline", "")
             summary = (item.get("summary", "") or "").replace("\n", "<br>")
             impact = item.get("impact", "")
+            related_companies = item.get("related_companies", [])
             source_url = item.get("source_url", "")
             source_name = item.get("source_name", "")
 
             parts.append(f"""
-      <div style="margin-bottom: 14px; padding: 16px; background-color: #F8FAFC; border-radius: 8px; border-left: 3px solid {badge_color};">
+      <div style="margin-bottom: 16px; padding: 16px 18px; background-color: #F8FAFC; border-radius: 8px; border-left: 3px solid {badge_color}; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
         <div style="font-size: 15px; font-weight: 700; color: #1E293B; margin-bottom: 8px; line-height: 1.4;">{headline}</div>
-        <div style="font-size: 14px; color: #475569; line-height: 1.7; margin-bottom: 8px;">{summary}</div>""")
+        <div style="font-size: 14px; color: #475569; line-height: 1.7; margin-bottom: 10px;">{summary}</div>""")
 
+            # 심층 인사이트 박스
             if impact:
                 parts.append(f"""
-        <div style="font-size: 13px; color: {badge_color}; font-weight: 600; margin-bottom: 8px;">💡 {impact}</div>""")
+        <div style="margin: 10px 0; padding: 10px 12px; background-color: #F0FDF4; border-radius: 6px; border-left: 3px solid #10B981;">
+          <div style="font-size: 11px; font-weight: 700; color: #047857; margin-bottom: 4px; letter-spacing: 0.3px;">💡 심층 인사이트 & 시사점 (Why It Matters)</div>
+          <div style="font-size: 13px; color: #065F46; line-height: 1.6; font-weight: 500;">{impact}</div>
+        </div>""")
+
+            # 관련 기업 & 밸류체인 분석
+            if related_companies:
+                parts.append("""
+        <div style="margin: 10px 0; padding: 10px 12px; background-color: #F1F5F9; border-radius: 6px; border: 1px solid #E2E8F0;">
+          <div style="font-size: 11px; font-weight: 700; color: #2563EB; margin-bottom: 6px; letter-spacing: 0.3px;">🏢 관련 기업 & 밸류체인 분석</div>""")
+                for comp in related_companies:
+                    cname = comp.get("name") if isinstance(comp, dict) else getattr(comp, "name", "")
+                    cticker = comp.get("ticker") if isinstance(comp, dict) else getattr(comp, "ticker", "")
+                    crelevance = comp.get("relevance") if isinstance(comp, dict) else getattr(comp, "relevance", "")
+                    ticker_label = f" ({cticker})" if cticker else ""
+                    if cname:
+                        parts.append(f"""
+          <div style="font-size: 12px; color: #334155; line-height: 1.5; margin-bottom: 5px;">
+            <span style="display: inline-block; background: #EEF2FF; color: #4338CA; font-weight: 700; padding: 2px 7px; border-radius: 4px; font-size: 11px; margin-right: 6px;">{cname}{ticker_label}</span>
+            <span>{crelevance}</span>
+          </div>""")
+                parts.append("""
+        </div>""")
 
             if source_url:
                 source_label = f" ({source_name})" if source_name else ""
                 parts.append(f"""
-        <a href="{source_url}" target="_blank" style="font-size: 12px; color: #6366F1; text-decoration: none; font-weight: 500;">관련 기사 보기{source_label} →</a>""")
+        <div style="margin-top: 8px;">
+          <a href="{source_url}" target="_blank" style="font-size: 12px; color: #6366F1; text-decoration: none; font-weight: 500;">관련 기사 보기{source_label} →</a>
+        </div>""")
 
             # 연관 기사 렌더링
             related_articles = item.get("related_articles", [])
@@ -864,14 +804,23 @@ def format_briefing_to_html(briefing_data, indicators=None, has_image=True):
         parts.append("""
     </div>""")
 
-    # ── 5. 푸터 ──
+    # ── 5. 마무리 코멘트 ──
+    if closing:
+        closing_html = closing.replace("\n", "<br>")
+        parts.append(f"""
+    <div style="margin-top: 24px; padding: 14px 16px; background-color: #F8FAFC; border-radius: 8px; border: 1px solid #E2E8F0; text-align: center;">
+      <div style="font-size: 11px; font-weight: 700; color: #64748B; margin-bottom: 4px;">📌 전략적 종합 관전 포인트</div>
+      <p style="font-size: 13px; color: #475569; line-height: 1.6; margin: 0; font-style: italic;">{closing_html}</p>
+    </div>""")
+
+    # ── 6. 푸터 ──
     parts.append(f"""
     <hr style="border: 0; border-top: 1px solid #E2E8F0; margin: 24px 0 16px 0;">
   </div>
 
   <!-- ===== 푸터 ===== -->
   <div style="background-color: #F8FAFC; padding: 18px 24px; text-align: center; border-top: 1px solid #E2E8F0;">
-    <p style="font-size: 11px; color: #94A3B8; margin: 0; line-height: 1.5;">Daily Intelligence Agent · Powered by Gemini AI<br>{today_str} ({today_weekday}) 자동 생성</p>
+    <p style="font-size: 11px; color: #94A3B8; margin: 0; line-height: 1.5;">Daily Strategic Intelligence Agent · Powered by Gemini AI<br>{today_str} ({today_weekday}) 자동 생성</p>
   </div>
 
 </div>
