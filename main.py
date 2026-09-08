@@ -170,17 +170,27 @@ MEDIA_DOMAIN_MAP = {
 }
 
 def get_media_name_from_url(url, default_name=""):
-    """URL 도메인을 분석하여 언론사 브랜드명으로 자동 변환합니다. 더 구체적인 서브도메인이 먼저 매칭됩니다."""
+    """URL 도메인을 분석하여 언론사 브랜드명으로 자동 변환합니다. 포털 도메인(네이버/다음)인 경우 기수집된 구체적 언론사명을 우선합니다."""
+    is_generic = not default_name or default_name.strip() in ["Google News", "구글 뉴스", "Naver News", "네이버 뉴스", "Unknown", ""]
+
     if not url:
-        return default_name
+        return "" if is_generic else default_name
+
     try:
         netloc = urllib.parse.urlparse(url).netloc.lower()
+        # 포털 도메인(naver.com, daum.net)인 경우 이미 구체적 언론사명이 있으면 언론사명 우선
+        if ("naver.com" in netloc or "daum.net" in netloc) and not is_generic:
+            return default_name
+
         for domain, name in sorted(MEDIA_DOMAIN_MAP.items(), key=lambda x: len(x[0]), reverse=True):
+            if domain in ["naver.com", "daum.net"] and not is_generic:
+                continue
             if domain in netloc:
                 return name
     except Exception:
         pass
-    if default_name and default_name not in ["Google News", "구글 뉴스", "Naver News", "네이버 뉴스", ""]:
+
+    if not is_generic:
         return default_name
     return ""
 
@@ -291,9 +301,11 @@ def collect_naver_news(keyword, client_id, client_secret, limit=20):
             data = response.json()
             articles = []
             for item in data.get("items", []):
-                link = item["link"]
                 title = clean_html(item["title"])
                 desc = clean_html(item["description"])
+                orig_link = item.get("originallink", "").strip()
+                portal_link = item.get("link", "").strip()
+                link = orig_link if (orig_link and is_valid_article_url(orig_link, title=title, description=desc)) else portal_link
                 
                 if not is_valid_article_url(link, title=title, description=desc, source_name="Naver News"):
                     continue
@@ -302,7 +314,7 @@ def collect_naver_news(keyword, client_id, client_secret, limit=20):
                     "title": title,
                     "link": link,
                     "description": desc or title,
-                    "source": "Naver News",
+                    "source": get_media_name_from_url(link, "Naver News"),
                     "pub_date": item.get("pubDate", "")
                 })
             return articles
@@ -528,8 +540,9 @@ class BriefingItem(BaseModel):
     summary: str = Field(description="핵심 팩트 요약 (무슨 일이 일어났는지 핵심 팩트를 1~2문장으로 명확히 전달)")
     impact: str = Field(description="심층 인사이트 및 파급효과 ('Why It Matters & So What?' - 산업 밸류체인, 시장 가격, 기업 실적에 미칠 실질적 영향 및 구조적 시사점을 2문장 내외로 날카롭게 분석. 상투적 표현 절대 금지)")
     related_companies: List[RelatedCompany] = Field(default_factory=list, description="이 이슈와 직접적이고 명확하게 연관된 핵심 기업 (실적 발표, M&A, 주요 공급망 계약, 주요 밸류체인 관계 등 근거가 확실한 경우만 포함. 연관성이나 근거가 모호하거나 약하면 억지로 작성하지 말고 반드시 빈 리스트 []로 남겨둘 것)")
-    source_url: str = Field(description="원문 기사 URL, 경제 지표 요약 항목은 빈 문자열")
-    source_name: str = Field(description="출처 언론사 이름 (예: 연합뉴스, 전자신문 등). 경제 지표 요약 항목은 빈 문자열")
+    article_id: str = Field(default="", description="이 브리핑 아이템의 바탕이 된 원문 기사의 고유 식별자 태그 (예: 'ART-01', 'ART-12'). 제공된 기사 목록에서 참조한 [ART-XX] 코드를 반드시 기재하십시오. 경제 지표 종합 요약 항목은 'INDICATOR')")
+    source_url: Optional[str] = Field(default="", description="원문 기사 URL (파이썬 코드가 article_id로부터 자동 매핑하므로 빈 문자열이어도 무방)")
+    source_name: Optional[str] = Field(default="", description="출처 언론사 이름 (파이썬 코드가 article_id로부터 자동 매핑)")
 
 class BriefingSection(BaseModel):
     category: str = Field(description="카테고리명 (거시 경제 & 주요 지표, 주요 기업 동향, AX · RX · 디지털 트윈 & 로보틱스, 국제 정세, 국내 정치, 스포츠 중 하나)")
@@ -558,6 +571,7 @@ class AIEngine:
                 except Exception as e:
                     logger.error(f"Gemini Client 초기화 에러: {e}")
         self._models_cache = None
+        self.last_articles_by_id = {}
 
     def _get_available_models(self):
         if self._models_cache is None:
@@ -588,6 +602,13 @@ class AIEngine:
         KST_local = timezone(timedelta(hours=9))
         today_str = datetime.now(KST_local).strftime("%Y년 %m월 %d일")
 
+        # 각 기사에 결정론적 고유 식별자([ART-01], [ART-02], ...) 부여 및 역참조 맵 구축
+        self.last_articles_by_id = {}
+        for idx, art in enumerate(articles):
+            art_id = f"ART-{idx+1:02d}"
+            art["id"] = art_id
+            self.last_articles_by_id[art_id] = art
+
         # 카테고리별로 기사 그룹화하여 명확한 섹션별 기사 리스트 제공
         by_cat = {}
         for art in articles:
@@ -595,12 +616,10 @@ class AIEngine:
             by_cat.setdefault(c, []).append(art)
 
         articles_text = ""
-        art_counter = 1
         for cname, arts in by_cat.items():
             articles_text += f"\n=== [카테고리: {cname} 관련 수집 기사] ===\n"
             for art in arts:
-                articles_text += f"[{art_counter}] 제목: {art['title']}\n출처: {art['source']}\n링크: {art['link']}\n설명: {art['description']}\n\n"
-                art_counter += 1
+                articles_text += f"[{art['id']}] 제목: {art['title']}\n출처: {art['source']}\n설명: {art['description']}\n\n"
 
         indicators_text = ""
         if indicators:
@@ -642,8 +661,11 @@ class AIEngine:
 4. ★팩트 검증 및 구시대 정보 / 소속팀·선수 오류 절대 금지★:
    - 제공된 최신 뉴스 기사에 기록된 명확한 팩트에 기반하여 작성하십시오.
    - 과거 기억이나 이전 학습 데이터에 기반하여 **이미 이적했거나 소속이 바뀐 선수/감독의 과거 소속팀 오인, 과거 대표이사/소속 등을 잘못 작성하는 팩트 오류를 절대 일으키지 마십시오.** 기사 원문의 최신 소속 및 팩트 정보를 엄격히 검증하여 작성해야 합니다.
-5. ★링크 검증 (공식 홈페이지/도메인 메인 페이지 금지)★:
-   - KBO, MLB, Premier League 등 스포츠 리그나 기관의 단순 메인 홈페이지 URL(예: kbo.or.kr, mlb.com 메인 등)은 무의미하므로 `source_url`로 사용하지 마십시오. 구체적인 개별 뉴스 기사 원문 URL만 `source_url`로 전달하십시오.
+5. ★기사 식별자 [ART-XX] 결정론적 바인딩 (DETERMINISTIC ARTICLE ID BINDING)★:
+   - 각 기사 항목마다 해당 내용의 바탕이 된 원문 기사의 [ART-XX] 식별자(예: 'ART-01', 'ART-08')를 반드시 `article_id` 필드에 정확히 기재하십시오.
+   - "거시 경제 & 주요 지표" 카테고리의 첫 번째 종합 경제 지표 요약 아이템은 `article_id`에 'INDICATOR'를 기재하십시오.
+   - 절대 가짜 ID나 존재하지 않는 번호를 지어내지 말고, 수집 기사 목록에 표시된 [ART-XX] 코드를 그대로 사용하십시오.
+   - `source_url`과 `source_name`은 파이썬 코드가 `article_id`를 기반으로 원문 데이터베이스에서 100% 정확하게 자동 주입하므로, 빈 문자열("")로 두셔도 됩니다.
 6. ★최상단 3대 핵심 전략 인사이트(executive_insights) & 주목 기업(key_watchlist_companies)★:
    - `executive_insights`는 오늘 하루 뉴스 전체를 가로지르는 3대 거시적/산업적 관전 포인트(Trend & Structural Shift)를 전문 애널리스트 관점에서 깊이 있게 제시하십시오.
    - `key_watchlist_companies`는 오늘 브리핑 전체에서 가장 핵심적으로 영향받는 대표 기업 3~5개 이름을 배열로 제시하십시오. (연관성이 확실한 기업만 도출)
@@ -658,7 +680,7 @@ class AIEngine:
      - 특히 "스포츠" 카테고리는 오직 [카테고리: 스포츠 관련 수집 기사] 목록에 제공된 실제 야구(KBO, MLB), 축구(손흥민, EPL, K리그), 농구, 골프 등 **실제 스포츠 경기 결과, 스코어, 선수 활약, 구단 순위 변동, 이적/FA 소식**만으로 작성하십시오.
      - 기업의 채용(대졸 신입/경력 채용, AI 문제해결력 검증 등), 일반 경영, SDV/모빌리티 기술, 재무 실적 발표 등은 절대 스포츠가 아닙니다. 스포츠 구단 모기업(기아, 삼성, 현대차, 한화 등)이라는 핑계로 기업 채용이나 일반 경영 뉴스를 스포츠 카테고리에 분류하는 것을 엄격히 금지합니다.
      - 동일 기업이나 동일 사건(예: 기아 채용 기사 여러 건 등)을 같은 카테고리 내에서 2개 이상의 아이템으로 중복하여 작성하는 것을 엄격히 금지합니다. 단 1개의 대표 아이템으로만 다루십시오.
-8. 각 기사 항목에 반드시 원문 기사 링크(source_url)를 포함하세요. 링크는 뉴스 기사 목록에 있는 링크를 그대로 사용하세요. (경제 지표 요약 항목은 빈 문자열로 하십시오.)
+8. 각 기사 항목의 원문 기사 식별자(article_id)를 통해 링크와 언론사가 자동 매핑됩니다. 경제 지표 요약 항목의 article_id는 'INDICATOR'로 지정하십시오.
 
 응답은 반드시 아래 JSON 스키마를 따르며, 마크다운 코드 블록 없이 순수 JSON만 출력하세요:
 
@@ -687,8 +709,9 @@ class AIEngine:
               "relevance": "String (해당 기업과의 구체적 연관성 및 수혜/리스크 분석 1~2문장)"
             }}
           ],
-          "source_url": "String (원문 기사 URL, 경제 지표 요약 항목은 빈 문자열)",
-          "source_name": "String (출처 언론사 이름, 예: 연합뉴스, 전자신문 등. 경제 지표 요약 항목은 빈 문자열)"
+          "article_id": "String ([ART-XX] 코드, 경제 지표 요약은 'INDICATOR')",
+          "source_url": "String (원문 기사 URL, 파이썬 코드가 article_id 기반 자동 매핑하므로 빈 문자열 가능)",
+          "source_name": "String (출처 언론사 이름, 파이썬 코드가 article_id 기반 자동 매핑하므로 빈 문자열 가능)"
         }}
       ]
     }}
@@ -1231,18 +1254,19 @@ def decode_news_urls(articles):
     return articles
 
 
-def restore_and_enrich_article_links(briefing, unique_articles):
+def resolve_article_links_by_id(briefing, articles_by_id=None, all_articles=None):
     """
-    AI가 생성한 각 섹션/아이템의 source_url과 related_articles를 수집된 뉴스 데이터베이스(unique_articles)와
-    정밀 비교 및 검증하여 유효한 원문 기사 및 연관 기사 링크를 보정합니다.
-    절대로 무관한 타 기사의 링크를 억지로 끼워 넣거나(폴백 금지), 메인 대표 사이트/스팸 링크를 넣지 않습니다.
+    AI가 지정한 article_id([ART-XX])를 기반으로 수집 기사 DB에서 원문 링크(source_url),
+    언론사명(source_name), 그리고 클러스터링된 연관 기사(related_articles)를 100% 결정론적으로 매핑합니다.
+    LLM의 URL 환각이나 링크 뒤바뀜을 원천 차단합니다.
     """
-    if not briefing or "sections" not in briefing or not unique_articles:
+    if not briefing or "sections" not in briefing:
         return briefing
 
-    unique_map = {art["link"]: art for art in unique_articles if is_valid_article_url(art.get("link"), title=art.get("title", ""), description=art.get("description", ""), source_name=art.get("source", ""))}
+    articles_by_id = articles_by_id or {}
+    all_articles = all_articles or []
 
-    # 한국어 불용어 (스포츠/일반 뉴스 공통 흔한 단어: 유사도 판정에서 제외)
+    # 한국어 불용어 (article_id 누락 시 비상 안전망 매칭용)
     STOPWORDS = {
         "기사", "소식", "뉴스", "경기", "선수", "결과", "시즌", "감독", "구단", "리그",
         "오늘", "이번", "기록", "관련", "리포트", "분석", "전망", "치열", "상황", "예상",
@@ -1251,41 +1275,7 @@ def restore_and_enrich_article_links(briefing, unique_articles):
         "단독", "종합", "속보", "브리핑", "진출", "확정", "시작", "예정", "선발", "교체"
     }
 
-    def find_matching_article(target_url, headline, summary):
-        # 1. URL 직접 일치 검사
-        if target_url and target_url in unique_map:
-            return unique_map[target_url]
-        
-        # 2. URL 파라미터 정규화 일치 검사
-        if target_url:
-            target_norm = target_url.split("?")[0].split("#")[0].strip()
-            for link, art in unique_map.items():
-                link_norm = link.split("?")[0].split("#")[0].strip()
-                if target_norm and link_norm and (target_norm == link_norm or target_norm in link_norm or link_norm in target_norm):
-                    return art
-
-        # 3. 불용어 제외 핵심 키워드 일치도 정밀 검사
-        text = f"{headline} {summary}"
-        words = set(w for w in re.findall(r'[가-힣a-zA-Z0-9]{2,}', text) if w not in STOPWORDS)
-        if len(words) >= 3:
-            best_art = None
-            max_score = 0
-            for art in unique_articles:
-                if is_spam_article(title=art.get("title", ""), description=art.get("description", ""), url=art.get("link", ""), source_name=art.get("source", "")):
-                    continue
-                art_text = f"{art.get('title', '')} {art.get('description', '')}"
-                art_words = set(w for w in re.findall(r'[가-힣a-zA-Z0-9]{2,}', art_text) if w not in STOPWORDS)
-                overlap = len(words & art_words)
-                # 핵심 키워드가 최소 3개 이상 일치하고, 키워드 일치 비율이 35% 이상일 때만 매칭
-                if overlap >= 3 and (overlap / len(words)) >= 0.35:
-                    if overlap > max_score:
-                        max_score = overlap
-                        best_art = art
-            if best_art:
-                return best_art
-        return None
-
-    # 구글 뉴스 디코더 임포트 시도
+    # 구글 뉴스 디코더 임포트 시도 (잔존 Google News 링크 변환용)
     gnewsdecoder = None
     try:
         from googlenewsdecoder import gnewsdecoder as _gnd
@@ -1297,30 +1287,66 @@ def restore_and_enrich_article_links(briefing, unique_articles):
         items = section.get("items", [])
 
         for idx, item in enumerate(items):
-            orig_url = item.get("source_url", "")
+            raw_id = (item.get("article_id") or "").strip()
             headline = item.get("headline", "")
             summary = item.get("summary", "")
+            matched_article = None
 
-            # 구글 뉴스 URL이 남아있다면 즉시 원문 링크로 디코딩 시도
-            if orig_url and "news.google.com" in orig_url and gnewsdecoder:
-                try:
-                    dec_res = gnewsdecoder(orig_url)
-                    if dec_res.get("status") and dec_res.get("decoded_url"):
-                        orig_url = dec_res["decoded_url"]
-                        item["source_url"] = orig_url
-                except Exception:
-                    pass
+            # 1. 경제 지표 종합 요약 항목 처리
+            if "INDICATOR" in raw_id.upper() or "지표" in raw_id:
+                item["source_url"] = ""
+                item["source_name"] = ""
+                item["related_articles"] = []
+                continue
 
-            matched = find_matching_article(orig_url, headline, summary)
+            # 2. [ART-XX] 정규식 패턴 정규화 매칭
+            m = re.search(r'ART[-_]?0*(\d+)', raw_id, re.IGNORECASE)
+            if m:
+                norm_id = f"ART-{int(m.group(1)):02d}"
+                if norm_id in articles_by_id:
+                    matched_article = articles_by_id[norm_id]
 
-            if matched:
-                matched_url = matched.get("link", "")
-                if is_valid_article_url(matched_url, title=headline, description=summary):
+            # 3. 비상 안전망: article_id 누락 또는 오작성 시 키워드 정밀 폴백
+            if not matched_article and (articles_by_id or all_articles):
+                candidates_pool = list(articles_by_id.values()) if articles_by_id else all_articles
+                text = f"{headline} {summary}"
+                words = set(w for w in re.findall(r'[가-힣a-zA-Z0-9]{2,}', text) if w not in STOPWORDS)
+                if len(words) >= 3:
+                    best_art = None
+                    max_score = 0
+                    for art in candidates_pool:
+                        if is_spam_article(title=art.get("title", ""), description=art.get("description", ""), url=art.get("link", ""), source_name=art.get("source", "")):
+                            continue
+                        art_text = f"{art.get('title', '')} {art.get('description', '')}"
+                        art_words = set(w for w in re.findall(r'[가-힣a-zA-Z0-9]{2,}', art_text) if w not in STOPWORDS)
+                        overlap = len(words & art_words)
+                        if overlap >= 3 and (overlap / len(words)) >= 0.35:
+                            if overlap > max_score:
+                                max_score = overlap
+                                best_art = art
+                    if best_art:
+                        matched_article = best_art
+
+            # 4. 매칭 결과 적용
+            if matched_article:
+                matched_url = matched_article.get("link", "")
+                if matched_url and "news.google.com" in matched_url and gnewsdecoder:
+                    try:
+                        dec_res = gnewsdecoder(matched_url)
+                        if dec_res.get("status") and dec_res.get("decoded_url"):
+                            matched_url = dec_res["decoded_url"]
+                    except Exception:
+                        pass
+
+                if is_valid_article_url(matched_url, title=headline, description=summary, source_name=matched_article.get("source", "")):
                     item["source_url"] = matched_url
-                item["source_name"] = get_media_name_from_url(item.get("source_url"), matched.get("source", ""))
+                    item["source_name"] = get_media_name_from_url(matched_url, matched_article.get("source", ""))
+                else:
+                    item["source_url"] = ""
+                    item["source_name"] = ""
 
-                # 실제로 동일 사건으로 클러스터링된 진짜 연관 기사만 검증 후 탑재
-                rel_arts = matched.get("related_articles", [])
+                # 클러스터링된 진짜 연관 기사 주입
+                rel_arts = matched_article.get("related_articles", [])
                 verified_rel = []
                 for r in rel_arts:
                     r_link = r.get("link", "")
@@ -1339,15 +1365,103 @@ def restore_and_enrich_article_links(briefing, unique_articles):
                         })
                 item["related_articles"] = verified_rel
             else:
-                # ★절대 무관한 다른 기사의 링크를 억지로 끼워넣는 폴백 금지★
-                # 기존 URL이 유효한 개별 기사 URL이면 유지, 아니면 빈 문자열로 초기화
+                # 매칭 실패 시 타 기사 억지 끼워넣기 금지 (원문 유지 또는 빈 문자열)
+                orig_url = item.get("source_url", "")
                 if orig_url and is_valid_article_url(orig_url, title=headline, description=summary):
-                    item["source_url"] = orig_url
                     item["source_name"] = get_media_name_from_url(orig_url, item.get("source_name", ""))
                 else:
                     item["source_url"] = ""
                     item["source_name"] = ""
                 item["related_articles"] = []
+
+    return briefing
+
+
+def verify_urls_liveness(briefing, max_workers=10, timeout=3.0):
+    """
+    브리핑에 포함된 모든 URL(source_url 및 related_articles의 link)을 병렬(ThreadPoolExecutor)로
+    실제 HTTP 응답(200 OK / 리다이렉션)을 검증하여 404/사망 링크 및 메인홈페이지 튕김 링크를 제거합니다.
+    """
+    if not briefing or "sections" not in briefing:
+        return briefing
+
+    urls_to_check = set()
+    for section in briefing.get("sections", []):
+        for item in section.get("items", []):
+            u = item.get("source_url", "").strip()
+            if u and u.startswith("http"):
+                urls_to_check.add(u)
+            for r in item.get("related_articles", []):
+                ru = r.get("link", "").strip()
+                if ru and ru.startswith("http"):
+                    urls_to_check.add(ru)
+
+    if not urls_to_check:
+        return briefing
+
+    logger.info(f"실시간 링크 생존(Liveness) 검증 시작: 총 {len(urls_to_check)}개 고유 URL...")
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+    }
+
+    def check_url(url):
+        if "news.google.com" in url:
+            return url, True
+        try:
+            resp = requests.head(url, headers=headers, timeout=timeout, allow_redirects=True)
+            if resp.status_code in [405, 403]:
+                resp = requests.get(url, headers=headers, timeout=timeout, allow_redirects=True, stream=True)
+                resp.close()
+
+            if 200 <= resp.status_code < 400:
+                final_url = resp.url.lower()
+                parsed_final = urllib.parse.urlparse(final_url)
+                final_path = parsed_final.path.strip("/")
+                if not final_path or final_path in ["", "index.html", "index.htm", "main", "home"]:
+                    orig_path = urllib.parse.urlparse(url).path.strip("/")
+                    if orig_path and orig_path not in ["", "index.html", "index.htm", "main", "home"]:
+                        logger.warning(f"기사 삭제 후 메인홈으로 리다이렉트된 링크 감지: {url} -> {final_url}")
+                        return url, False
+                return url, True
+            else:
+                logger.warning(f"사망 링크 감지 (HTTP {resp.status_code}): {url}")
+                return url, False
+        except Exception as e:
+            logger.warning(f"링크 연결 검증 실패 ({url}): {e}")
+            return url, False
+
+    url_status = {}
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_url = {executor.submit(check_url, u): u for u in urls_to_check}
+        for future in future_to_url:
+            try:
+                u, is_alive = future.result()
+                url_status[u] = is_alive
+            except Exception:
+                pass
+
+    dead_count = sum(1 for v in url_status.values() if not v)
+    logger.info(f"링크 생존 검증 완료: 정상 {len(url_status)-dead_count}개 / 사망·차단 {dead_count}개")
+
+    # 사망 링크 제거 정화
+    for section in briefing.get("sections", []):
+        for item in section.get("items", []):
+            src = item.get("source_url", "").strip()
+            if src and not url_status.get(src, True):
+                logger.info(f"사망 링크 정화 제거: '{item.get('headline')}' -> {src}")
+                item["source_url"] = ""
+                item["source_name"] = ""
+
+            live_rels = []
+            for r in item.get("related_articles", []):
+                ru = r.get("link", "").strip()
+                if ru and url_status.get(ru, True):
+                    live_rels.append(r)
+                elif ru:
+                    logger.info(f"연관 기사 사망 링크 정화 제거: '{r.get('title')}' -> {ru}")
+            item["related_articles"] = live_rels
 
     return briefing
 
@@ -1494,8 +1608,11 @@ def main():
     # 4.7단계: 카테고리 적합성 검증 및 비스포츠 기사 퇴출/재배치, 동일 사건 중복 정화
     briefing = sanitize_briefing_categories(briefing)
 
-    # 4.8단계: 기사 원문 및 연관 기사 100% 매핑 보정
-    briefing = restore_and_enrich_article_links(briefing, unique_articles)
+    # 4.8단계: 기사 식별자(Article ID) 기반 100% 결정론적 원문 및 연관 기사 바인딩
+    briefing = resolve_article_links_by_id(briefing, getattr(ai, "last_articles_by_id", {}), unique_articles)
+
+    # 4.9단계: 실시간 HTTP 링크 생존(Liveness) 검증 (404/사망 링크 및 메인홈 튕김 제거)
+    briefing = verify_urls_liveness(briefing)
 
     section_names = [s.get("category", "?") for s in briefing.get("sections", [])]
     logger.info(f"생성된 섹션: {', '.join(section_names)}")
