@@ -311,8 +311,86 @@ def collect_naver_news(keyword, client_id, client_secret, limit=20):
         logger.error(f"네이버 뉴스 API 수집 에러 ({keyword}): {e}")
         return []
 
+def categorize_article(title="", description="", keyword=""):
+    """키워드 및 기사 제목/본문을 분석하여 6대 카테고리 중 하나로 정확하게 분류합니다."""
+    text = f"{title} {description} {keyword}".lower()
+
+    # 1. 스포츠: 야구, 축구, 농구, 골프 등 실제 스포츠 종목 및 경기 결과
+    sports_kw = [
+        "kbo", "mlb", "epl", "k리그", "야구", "축구", "농구", "배구", "골프", "테니스",
+        "손흥민", "이정후", "김도영", "오타니", "홈런", "경기 결과", "프로야구", "해외축구",
+        "메이저리그", "골", "득점", "삼진", "타율", "잔여경기", "가을야구", "투수", "타자",
+        "안타", "실책", "승점", "순위 싸움", "스토브리그", "fa 계약"
+    ]
+    non_sports_kw = [
+        "채용", "공채", "신입", "대졸", "서류 접수", "sdv", "전동화", "인재 확보", "채용 전형",
+        "디지털 전환", "영업이익", "분기 실적", "반도체 수율", "부동산 분양", "대통령실", "국회 본회의",
+        "문제해결력"
+    ]
+    if any(k in text for k in sports_kw):
+        # 기업 채용, 공채, SDV 등 비스포츠 키워드가 명확히 들어간 경우 스포츠에서 제외
+        if not any(k in text for k in non_sports_kw):
+            return "스포츠"
+
+    # 2. 국내 정치
+    politics_kw = ["국회", "대통령실", "여당", "야당", "의원", "입법", "국정감사", "당대표", "원내대표", "총선", "선거", "정치", "법안", "청문회"]
+    if any(k in text for k in politics_kw):
+        return "국내 정치"
+
+    # 3. 국제 정세
+    intl_kw = ["백악관", "트럼프", "바이든", "미국 대선", "중국 외교", "우크라이나", "중동", "nato", "지정학", "국제 정세", "외교부", "정상회담", "관세"]
+    if any(k in text for k in intl_kw):
+        return "국제 정세"
+
+    # 4. AX · RX · 디지털 트윈 & 로보틱스
+    tech_kw = ["인공지능", "생성형 ai", "llm", "로봇", "로보틱스", "디지털 트윈", "자율주행", "ax", "rx", "엔비디아", "openai", "온디바이스 ai", "agi"]
+    if any(k in text for k in tech_kw):
+        return "AX · RX · 디지털 트윈 & 로보틱스"
+
+    # 5. 주요 기업 동향 (기업 채용, 신사업, 실적, M&A 등)
+    corp_kw = ["실적", "영업이익", "매출", "m&a", "인수", "투자", "채용", "공채", "신입", "상장", "공시", "현대차", "기아", "삼성전자", "sk하이닉스", "lg", "사업 개편"]
+    if any(k in text for k in corp_kw):
+        return "주요 기업 동향"
+
+    # 6. 거시 경제 & 주요 지표
+    econ_kw = ["금리", "환율", "코스피", "코스닥", "나스닥", "부동산", "물가", "cpi", "한국은행", "fed", "연준", "통화정책", "금융", "증시", "기준금리"]
+    if any(k in text for k in econ_kw):
+        return "거시 경제 & 주요 지표"
+
+    return "주요 기업 동향"
+
+
+def select_balanced_articles_per_category(articles, max_per_cat=8):
+    """6대 카테고리별로 고르게 기사를 선별하여 특정 분야의 기사 기근이나 편중을 방지합니다."""
+    categories_order = [
+        "거시 경제 & 주요 지표",
+        "주요 기업 동향",
+        "AX · RX · 디지털 트윈 & 로보틱스",
+        "국제 정세",
+        "국내 정치",
+        "스포츠"
+    ]
+    by_cat = {c: [] for c in categories_order}
+
+    for art in articles:
+        cat = art.get("category")
+        if not cat or cat not in by_cat:
+            cat = categorize_article(art.get("title", ""), art.get("description", ""))
+            art["category"] = cat
+        if len(by_cat[cat]) < max_per_cat:
+            by_cat[cat].append(art)
+
+    balanced = []
+    for c in categories_order:
+        items = by_cat[c]
+        balanced.extend(items)
+        logger.info(f"선정된 기사 - 카테고리 '{c}': {len(items)}개 기사")
+
+    return balanced
+
+
 def collect_all_news(keywords, naver_id=None, naver_secret=None, limit_per_keyword=15):
-    """여러 키워드에 대해 뉴스를 통합 수집 및 링크 중복 제거합니다."""
+    """여러 키워드에 대해 뉴스를 통합 수집하고 카테고리를 부여한 후 중복을 제거합니다."""
     all_articles = []
     seen_links = set()
     
@@ -327,6 +405,7 @@ def collect_all_news(keywords, naver_id=None, naver_secret=None, limit_per_keywo
             link = art["link"]
             if link not in seen_links:
                 seen_links.add(link)
+                art["category"] = categorize_article(art.get("title", ""), art.get("description", ""), kw)
                 all_articles.append(art)
                 
     logger.info(f"뉴스 수집 완료: 총 {len(all_articles)}개 기사 수집됨 (중복 링크 제거)")
@@ -509,9 +588,19 @@ class AIEngine:
         KST_local = timezone(timedelta(hours=9))
         today_str = datetime.now(KST_local).strftime("%Y년 %m월 %d일")
 
+        # 카테고리별로 기사 그룹화하여 명확한 섹션별 기사 리스트 제공
+        by_cat = {}
+        for art in articles:
+            c = art.get("category") or "기타"
+            by_cat.setdefault(c, []).append(art)
+
         articles_text = ""
-        for idx, art in enumerate(articles):
-            articles_text += f"[{idx+1}] 제목: {art['title']}\n출처: {art['source']}\n링크: {art['link']}\n설명: {art['description']}\n\n"
+        art_counter = 1
+        for cname, arts in by_cat.items():
+            articles_text += f"\n=== [카테고리: {cname} 관련 수집 기사] ===\n"
+            for art in arts:
+                articles_text += f"[{art_counter}] 제목: {art['title']}\n출처: {art['source']}\n링크: {art['link']}\n설명: {art['description']}\n\n"
+                art_counter += 1
 
         indicators_text = ""
         if indicators:
@@ -526,14 +615,14 @@ class AIEngine:
 당신의 핵심 임무는 단순한 뉴스 팩트 요약(받아쓰기)이 아닙니다.
 개별 사건 이면에 숨겨진 구조적 변화(Why It Matters), 산업 밸류체인 및 시장에 미칠 실질적 파급효과(So What?), 그리고 직접적으로 연관된 핵심 기업(수혜주, 피해주, 공급망 파트너)의 비즈니스적 인과관계를 날카롭고 깊이 있게 도출하는 것입니다.
 
-{indicators_text}[뉴스 기사 목록]
+{indicators_text}[뉴스 기사 목록 (카테고리별 그룹화)]
 {articles_text}
 {additional_notes}
 
 [카테고리 분류 규칙]
-반드시 다음 6개 카테고리를 모두 포함하여 작성하세요 (기사가 부족하거나 없는 카테고리도 절대 생략하지 말고 반드시 포함해야 합니다):
+반드시 다음 6개 카테고리를 모두 포함하여 작성하세요:
 1. "거시 경제 & 주요 지표" - 경제, 금융, 환율, 주식시장, 금리, 부동산, 물가, 통화정책 등 주요 경제 기사 (경제 지표 요약 외에도 실질적인 경제 관련 뉴스 기사 다수 포함)
-2. "주요 기업 동향" - 기업 투자, M&A, 실적 발표, 신사업, 경영 전략 관련(해외 IT 빅테크 및 국내 삼성, SK, 현대차, LG 그룹 등 주요 기업)
+2. "주요 기업 동향" - 기업 투자, M&A, 실적 발표, 신사업, 경영 전략, 대규모 채용 관련(해외 IT 빅테크 및 국내 삼성, SK, 현대차, 기아, LG 그룹 등 주요 기업)
 3. "AX · RX · 디지털 트윈 & 로보틱스" - AI, 로봇, 디지털 트윈, 자동화, 기술 혁신, 신기술 적용 사례 관련
 4. "국제 정세" - 해외 정치, 외교, 무역, 지정학적 이슈 관련
 5. "국내 정치" - 국내 정책, 입법, 선거, 주요 정치 현안 관련
@@ -541,7 +630,7 @@ class AIEngine:
 
 [심층 인사이트 및 작성 지침]
 1. ★동일 사건 중복 및 반복 보도 절대 금지 (ZERO DUPLICATE EVENTS)★:
-   - 동일한 사건, 동일한 경기, 동일한 정책 발표, 동일한 인물/기업 이슈를 다룬 기사는 반드시 단 1개의 대표 아이템으로만 작성하십시오.
+   - 동일한 사건, 동일한 경기, 동일한 정책 발표, 동일한 기업 이슈(예: 기아 채용 기사 등)를 다룬 뉴스는 반드시 단 1개의 대표 아이템으로만 작성하십시오.
    - 같은 카테고리 내에서든 다른 카테고리에서든, **동일하거나 유사한 사건을 여러 아이템에 걸쳐 중복/반복하여 작성하는 것을 엄격히 금지**합니다.
    - 각 아이템은 반드시 **서로 완전히 다른 독립적인 사건/이슈/경기**를 다루어야 하며, 브리핑 전체에 걸쳐 소재가 겹치지 않도록 다양한 시각의 뉴스를 선정하십시오.
 2. ★상투적이고 무의미한 표현 절대 금지★:
@@ -564,7 +653,11 @@ class AIEngine:
      - **시즌 중(On-Season)**인 종목: 당일/전일 실제 경기 결과, 스코어(점수/승패), 주요 선수 활약상 및 순위 변동 등 경기 결과를 구체적으로 포함하세요.
      - **시즌 종료/휴식기(Off-Season / 비경기일)**인 종목: 억지로 경기 결과를 환각(가짜 스코어)하지 말고, 대형 FA 계약, 트레이드, 감독/스태프 교체, 선수단 개편, 스프링캠프훈련, 주요 수상 소식 등 뉴스 기사에 제공된 팩트 소식을 정확히 전달하세요.
      - 야구(KBO/MLB: 봄~가을), 축구(EPL/유럽: 가을~봄), 농구(겨울~봄), 골프 등 사계절 교차 종목이 존재하므로, 당일 진행 중인 종목 뉴스를 우선 활용하세요.
-   - 만약 특정 분야에 해당하는 뉴스 기사가 부족한 경우, 제공된 뉴스 기사 중 연관된 각도를 찾아서 해석하거나 최신 트렌드를 유추하여 각 카테고리당 최소 3개 이상의 아이템을 반드시 만드십시오. 빈 카테고리나 3개 미만의 아이템은 허용되지 않습니다.
+   - ★카테고리 매핑 원칙 및 비(非)스포츠 기사 스포츠 분류 절대 금지 (STRICT CATEGORY INTEGRITY)★:
+     - 각 카테고리는 반드시 위에 카테고리별로 분류되어 제공된 기사 목록에서만 기사를 선정하여 작성하십시오.
+     - 특히 "스포츠" 카테고리는 오직 [카테고리: 스포츠 관련 수집 기사] 목록에 제공된 실제 야구(KBO, MLB), 축구(손흥민, EPL, K리그), 농구, 골프 등 **실제 스포츠 경기 결과, 스코어, 선수 활약, 구단 순위 변동, 이적/FA 소식**만으로 작성하십시오.
+     - 기업의 채용(대졸 신입/경력 채용, AI 문제해결력 검증 등), 일반 경영, SDV/모빌리티 기술, 재무 실적 발표 등은 절대 스포츠가 아닙니다. 스포츠 구단 모기업(기아, 삼성, 현대차, 한화 등)이라는 핑계로 기업 채용이나 일반 경영 뉴스를 스포츠 카테고리에 분류하는 것을 엄격히 금지합니다.
+     - 동일 기업이나 동일 사건(예: 기아 채용 기사 여러 건 등)을 같은 카테고리 내에서 2개 이상의 아이템으로 중복하여 작성하는 것을 엄격히 금지합니다. 단 1개의 대표 아이템으로만 다루십시오.
 8. 각 기사 항목에 반드시 원문 기사 링크(source_url)를 포함하세요. 링크는 뉴스 기사 목록에 있는 링크를 그대로 사용하세요. (경제 지표 요약 항목은 빈 문자열로 하십시오.)
 
 응답은 반드시 아래 JSON 스키마를 따르며, 마크다운 코드 블록 없이 순수 JSON만 출력하세요:
@@ -1259,6 +1352,87 @@ def restore_and_enrich_article_links(briefing, unique_articles):
     return briefing
 
 
+def sanitize_briefing_categories(briefing):
+    """
+    1. 스포츠 카테고리에 잘못 분류된 비(非)스포츠 기사(기업 채용, 일반 경영, SDV, 반도체 등)를 감지하여
+       올바른 카테고리로 재배치하거나 스포츠 섹션에서 퇴출합니다.
+    2. 동일 사건/기업의 중복 아이템(예: 기아 채용 기사 2건 등)을 감지하여 1건만 유지합니다.
+    """
+    if not briefing or "sections" not in briefing:
+        return briefing
+
+    sports_keywords = {
+        "야구", "축구", "농구", "배구", "골프", "테니스", "kbo", "mlb", "epl", "k리그",
+        "선수", "경기", "감독", "구단", "홈런", "골", "득점", "승리", "패배", "리그",
+        "포스트시즌", "타율", "삼진", "이적", "fa", "스토브리그", "트레이드", "챔피언스",
+        "토트넘", "손흥민", "이정후", "김도영", "오타니", "탁구", "수영", "양궁", "올림픽",
+        "월드컵", "아시안게임", "스코어", "안타", "투수", "타자", "잔여경기", "가을야구",
+        "승점", "순위 싸움"
+    }
+
+    non_sports_keywords = {
+        "채용", "공채", "신입", "대졸", "서류 접수", "sdv", "전동화", "반도체", "디지털 전환",
+        "영업이익", "분기 실적", "m&a", "공시", "주총", "정치", "국회", "대통령", "금리", "아파트",
+        "인재 확보", "채용 전형", "문제해결력 검증"
+    }
+
+    cleaned_sections = []
+    ejected_items = []
+
+    for section in briefing.get("sections", []):
+        cat_name = section.get("category", "")
+        items = section.get("items", [])
+
+        if "스포츠" in cat_name:
+            clean_sports_items = []
+            for item in items:
+                text = f"{item.get('headline', '')} {item.get('summary', '')} {item.get('impact', '')}".lower()
+                has_sports = any(kw in text for kw in sports_keywords)
+                has_non_sports = any(kw in text for kw in non_sports_keywords)
+
+                # 스포츠 키워드가 전혀 없거나, 명백한 기업 채용/일반 비즈니스 기사인 경우
+                if has_non_sports and not has_sports:
+                    logger.warning(f"스포츠 카테고리에서 비스포츠 기사 감지 및 퇴출: '{item.get('headline')}'")
+                    ejected_items.append(item)
+                else:
+                    clean_sports_items.append(item)
+            section["items"] = clean_sports_items
+
+        # 동일 카테고리 내 동일 사건/주제 중복 제거 (예: 기아 채용 2건 등)
+        seen_topics = []
+        deduped_items = []
+        for item in section.get("items", []):
+            h = item.get("headline", "")
+            words = set(re.findall(r'[가-힣a-zA-Z0-9]{2,}', h))
+            is_duplicate = False
+            for prev_words in seen_topics:
+                common = words & prev_words
+                if len(common) >= 2 and any(kw in common for kw in ["채용", "공채", "실적", "손흥민", "이정후", "김도영", "kbo", "금리", "환율", "부동산"]):
+                    is_duplicate = True
+                    break
+            if is_duplicate:
+                logger.warning(f"카테고리 내 동일 사건 중복 아이템 제거: '{h}'")
+                continue
+            seen_topics.append(words)
+            deduped_items.append(item)
+        section["items"] = deduped_items
+        cleaned_sections.append(section)
+
+    # 퇴출된 비스포츠 아이템(예: 기아 채용 등)을 '주요 기업 동향' 섹션으로 정상 재배치
+    if ejected_items:
+        corp_section = next((s for s in cleaned_sections if "주요 기업 동향" in s.get("category", "")), None)
+        if corp_section:
+            for item in ejected_items:
+                h = item.get("headline", "")
+                words = set(re.findall(r'[가-힣a-zA-Z0-9]{2,}', h))
+                if not any(len(words & set(re.findall(r'[가-힣a-zA-Z0-9]{2,}', s_item.get("headline", "")))) >= 2 for s_item in corp_section.get("items", [])):
+                    corp_section["items"].append(item)
+                    logger.info(f"퇴출된 기사를 '주요 기업 동향'으로 정상 재배치: '{h}'")
+
+    briefing["sections"] = cleaned_sections
+    return briefing
+
+
 def main():
     logger.info("Daily Briefing Standalone Agent 시작...")
     
@@ -1291,6 +1465,9 @@ def main():
     # 2.5단계 구글 뉴스 URL 병렬 디코딩 (원문 언론사 직접 링크 변환)
     unique_articles = decode_news_urls(unique_articles)
 
+    # 2.8단계 카테고리별 균형 잡힌 기사 세트 구성 (카테고리당 최대 8개)
+    balanced_articles = select_balanced_articles_per_category(unique_articles, max_per_cat=8)
+
     # 3단계 경제 지표 수집
     logger.info("3단계: 경제 지표 수집 시작...")
     indicators = get_economic_indicators()
@@ -1302,7 +1479,7 @@ def main():
     # 4단계 AI 브리핑 생성
     logger.info("4단계: Gemini API를 사용하여 카테고리별 브리핑 생성 시작...")
     ai = AIEngine(gemini_api_key)
-    briefing = ai.generate_briefing(unique_articles[:50], indicators)
+    briefing = ai.generate_briefing(balanced_articles, indicators)
     
     if "error" in briefing:
         logger.error(f"브리핑 생성 실패: {briefing['error']}")
@@ -1313,6 +1490,9 @@ def main():
     # 4.5단계: 일일 요약 이미지 생성 (AI 생성 시도 + 고화질 인포그래픽 배너 폴백)
     logger.info("4.5단계: 일일 요약 이미지 생성 시작...")
     image_bytes = generate_summary_image(ai, briefing, indicators)
+
+    # 4.7단계: 카테고리 적합성 검증 및 비스포츠 기사 퇴출/재배치, 동일 사건 중복 정화
+    briefing = sanitize_briefing_categories(briefing)
 
     # 4.8단계: 기사 원문 및 연관 기사 100% 매핑 보정
     briefing = restore_and_enrich_article_links(briefing, unique_articles)
