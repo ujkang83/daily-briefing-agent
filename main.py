@@ -24,6 +24,7 @@ from email.mime.image import MIMEImage
 # 한국 표준시 (KST) 타임존 설정
 KST = timezone(timedelta(hours=9))
 
+from concurrent.futures import ThreadPoolExecutor
 import requests
 import feedparser
 from google import genai
@@ -127,15 +128,66 @@ def is_spam_article(title="", description="", url="", source_name=""):
             return True
             
     for domain in SPAM_DOMAINS:
-        if domain.lower() in url_lower:
+        if domain.lower() in url_lower or domain.lower() in text:
             return True
 
     return False
 
+MEDIA_DOMAIN_MAP = {
+    "biz.chosun.com": "조선비즈",
+    "sports.chosun.com": "스포츠조선",
+    "chosun.com": "조선일보",
+    "yna.co.kr": "연합뉴스",
+    "yonhapnewstv.co.kr": "연합뉴스TV",
+    "donga.com": "동아일보",
+    "sports.donga.com": "스포츠동아",
+    "joongang.co.kr": "중앙일보",
+    "isplus.com": "일간스포츠",
+    "hani.co.kr": "한겨레",
+    "khan.co.kr": "경향신문",
+    "mk.co.kr": "매일경제",
+    "hankyung.com": "한국경제",
+    "sedaily.com": "서울경제",
+    "news1.kr": "뉴스1",
+    "newsis.com": "뉴시스",
+    "spotvnews.co.kr": "스포티비뉴스",
+    "xportsnews.com": "엑스포츠뉴스",
+    "sportsseoul.com": "스포츠서울",
+    "osen.co.kr": "OSEN",
+    "mydaily.co.kr": "마이데일리",
+    "newsen.com": "뉴스엔",
+    "mt.co.kr": "머니투데이",
+    "edaily.co.kr": "이데일리",
+    "etnews.com": "전자신문",
+    "zdnet.co.kr": "지디넷코리아",
+    "ytn.co.kr": "YTN",
+    "sbs.co.kr": "SBS",
+    "kbs.co.kr": "KBS",
+    "mbc.co.kr": "MBC",
+    "jtbc.co.kr": "JTBC",
+    "naver.com": "네이버 뉴스",
+    "daum.net": "다음 뉴스"
+}
+
+def get_media_name_from_url(url, default_name=""):
+    """URL 도메인을 분석하여 언론사 브랜드명으로 자동 변환합니다. 더 구체적인 서브도메인이 먼저 매칭됩니다."""
+    if not url:
+        return default_name
+    try:
+        netloc = urllib.parse.urlparse(url).netloc.lower()
+        for domain, name in sorted(MEDIA_DOMAIN_MAP.items(), key=lambda x: len(x[0]), reverse=True):
+            if domain in netloc:
+                return name
+    except Exception:
+        pass
+    if default_name and default_name not in ["Google News", "구글 뉴스", "Naver News", "네이버 뉴스", ""]:
+        return default_name
+    return ""
+
 def is_valid_article_url(url, title="", description="", source_name=""):
     """
-    단순 공식 홈페이지, 도메인 루트(KBO, MLB, EPL 메인 등) 및 개별 기사가 아닌 껍데기 링크,
-    불법 토토/슬롯 스팸 기사를 걸러냅니다.
+    단순 공식 홈페이지, 포털 스포츠 대표/섹션 메인(KBO, MLB, EPL, 네이버스포츠 메인 등) 및
+    개별 기사가 아닌 껍데기 링크, 불법 토토/슬롯 스팸 기사를 걸러냅니다.
     """
     if not url or not isinstance(url, str) or not url.startswith("http"):
         return False
@@ -147,16 +199,30 @@ def is_valid_article_url(url, title="", description="", source_name=""):
         parsed = urllib.parse.urlparse(url)
         netloc = parsed.netloc.lower()
         path = parsed.path.strip("/")
+        query = parsed.query.lower()
         
         for domain in SPAM_DOMAINS:
-            if domain.lower() in netloc:
+            if domain.lower() in netloc or domain.lower() in (title + description).lower():
                 return False
 
         # 1. 경로(path)가 비어있거나 index/home/main 등 단순 메인 페이지인 경우
         if not path or path.lower() in ["", "index.html", "index.htm", "index.php", "home", "main", "default.aspx"]:
-            return False
+            if not any(param in query for param in ["aid=", "article_id=", "idxno=", "id=", "no=", "gno="]):
+                return False
+
+        # 2. 포털 및 언론사 스포츠 섹션 메인/분류 페이지 필터링
+        section_paths = {
+            "sports", "kbaseball", "wbaseball", "kfootball", "wfootball",
+            "baseball", "football", "soccer", "basketball", "volleyball", "golf",
+            "esports", "general", "sports/index", "news/sports", "section", "all",
+            "sports/all", "category"
+        }
+        clean_path = path.lower().rstrip("/")
+        if clean_path in section_paths or clean_path.endswith("/index") or clean_path.endswith("/index.nhn"):
+            if not any(param in query for param in ["aid=", "article_id=", "idxno=", "id=", "no=", "gno="]):
+                return False
             
-        # 2. 알려진 스포츠 리그/기관 단순 메인 도메인 및 랜딩 페이지 검증
+        # 3. 알려진 스포츠 리그/기관 단순 메인 도메인 및 랜딩 페이지 검증
         generic_domains = [
             "kbo.or.kr", "koreabaseball.com", "mlb.com", "premierleague.com",
             "kleague.com", "nba.com", "korea.kr"
@@ -166,6 +232,16 @@ def is_valid_article_url(url, title="", description="", source_name=""):
                 path_lower = path.lower()
                 if not any(sub in path_lower for sub in ["article", "news", "story", "game", "match", "view"]):
                     return False
+                    
+        # 4. 개별 기사 식별자(숫자, 기사 식별 키워드) 확인
+        has_article_keyword = any(kw in clean_path for kw in ["article", "view", "read", "story", "news", "detail", "mnews", "v/"])
+        has_digits = bool(re.search(r'\d{3,}', clean_path) or re.search(r'\d{3,}', query))
+        has_article_param = any(param in query for param in ["aid=", "article_id=", "idxno=", "id=", "no=", "gno="])
+        
+        if "news.google.com" not in netloc:
+            if not (has_digits or has_article_keyword or has_article_param):
+                return False
+
         return True
     except Exception:
         return False
@@ -994,114 +1070,100 @@ def send_email(title, html_body, image_bytes=None):
 # ==========================================
 def decode_news_urls(articles):
     """
-    구글 뉴스 URL을 디코딩하여 국내 언론사 원래 사이트의 기사 링크로 보정합니다.
+    구글 뉴스 URL을 ThreadPoolExecutor를 이용해 병렬로 디코딩하여
+    국내 언론사 원문 사이트의 직접 기사 링크로 보정합니다.
     """
-    logger.info("구글 뉴스 URL 디코딩 시작...")
+    logger.info("구글 뉴스 URL 병렬 디코딩 시작...")
     try:
         from googlenewsdecoder import gnewsdecoder
     except ImportError:
         logger.warning("googlenewsdecoder 라이브러리가 임포트되지 않아 URL 디코딩을 건너뜁니다.")
         return articles
 
+    # 1. 디코딩 대상 구글 뉴스 URL 수집 (중복 제거)
+    urls_to_decode = set()
     for art in articles:
         orig_url = art.get("link", "")
         if orig_url and "news.google.com" in orig_url:
-            try:
-                decoded = gnewsdecoder(orig_url)
-                if decoded.get("status") and decoded.get("decoded_url"):
-                    art["link"] = decoded["decoded_url"]
-                    logger.info(f"URL 디코딩 완료: {decoded['decoded_url']}")
-            except Exception as e:
-                logger.warning(f"URL 디코딩 에러 ({orig_url}): {e}")
-
-        # 연관 기사 URL 디코딩
+            urls_to_decode.add(orig_url)
         for rel in art.get("related_articles", []):
             rel_url = rel.get("link", "")
             if rel_url and "news.google.com" in rel_url:
-                try:
-                    decoded = gnewsdecoder(rel_url)
-                    if decoded.get("status") and decoded.get("decoded_url"):
-                        rel["link"] = decoded["decoded_url"]
-                        logger.info(f"연관 URL 디코딩 완료: {decoded['decoded_url']}")
-                except Exception as e:
-                    logger.warning(f"연관 URL 디코딩 에러 ({rel_url}): {e}")
+                urls_to_decode.add(rel_url)
+
+    if not urls_to_decode:
+        logger.info("디코딩할 구글 뉴스 URL이 없습니다.")
+        return articles
+
+    logger.info(f"디코딩 대상 구글 뉴스 URL 총 {len(urls_to_decode)}개 병렬 디코딩 진행 중...")
+
+    decoded_cache = {}
+    def _decode_single(u):
+        try:
+            res = gnewsdecoder(u)
+            if res.get("status") and res.get("decoded_url"):
+                return u, res["decoded_url"]
+        except Exception as e:
+            logger.debug(f"URL 디코딩 실패 ({u[:50]}...): {e}")
+        return u, None
+
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        for orig, dec in executor.map(_decode_single, list(urls_to_decode)):
+            if dec:
+                decoded_cache[orig] = dec
+
+    logger.info(f"구글 뉴스 URL 디코딩 완료: {len(decoded_cache)}/{len(urls_to_decode)}개 성공")
+
+    # 2. 기사 객체들에 디코딩 결과 반영
+    for art in articles:
+        orig_url = art.get("link", "")
+        if orig_url in decoded_cache:
+            dec_url = decoded_cache[orig_url]
+            if is_valid_article_url(dec_url, title=art.get("title", ""), description=art.get("description", ""), source_name=art.get("source", "")):
+                art["link"] = dec_url
+                media_name = get_media_name_from_url(dec_url, art.get("source", ""))
+                if media_name:
+                    art["source"] = media_name
+
+        for rel in art.get("related_articles", []):
+            rel_url = rel.get("link", "")
+            if rel_url in decoded_cache:
+                dec_url = decoded_cache[rel_url]
+                if is_valid_article_url(dec_url, title=rel.get("title", ""), source_name=rel.get("source", "")):
+                    rel["link"] = dec_url
+                    media_name = get_media_name_from_url(dec_url, rel.get("source", ""))
+                    if media_name:
+                        rel["source"] = media_name
+
     return articles
 
 
-def main():
-    logger.info("========================================")
-    logger.info("Daily Briefing Standalone Agent 기동")
-    logger.info("========================================")
-
-    # 설정 로드
-    gemini_api_key = _clean_env_val(os.getenv("GEMINI_API_KEY"))
-    naver_client_id = _clean_env_val(os.getenv("NAVER_CLIENT_ID"))
-    naver_client_secret = _clean_env_val(os.getenv("NAVER_CLIENT_SECRET"))
-    
-    keywords_str = _clean_env_val(os.getenv("NEWS_KEYWORDS", "인공지능, 빅테크, IT 트렌드, 거시 경제, 금융 증시, 금리 환율 부동산, 국제 정세, 국내 정치, 스포츠 경기 결과, 해외축구 손흥민 KBO"))
-    keywords = [k.strip() for k in keywords_str.split(",") if k.strip()]
-    
-    slack_webhook = _clean_env_val(os.getenv("SLACK_WEBHOOK_URL"))
-    telegram_token = _clean_env_val(os.getenv("TELEGRAM_BOT_TOKEN"))
-    telegram_chat_id = _clean_env_val(os.getenv("TELEGRAM_CHAT_ID"))
-    discord_webhook = _clean_env_val(os.getenv("DISCORD_WEBHOOK_URL"))
-
-    if not gemini_api_key:
-        logger.error("GEMINI_API_KEY 환경변수가 정의되어 있지 않아 에이전트를 종료합니다.")
-        sys.exit(1)
-
-    # 1단계 기사 수집
-    logger.info(f"1단계: 수집 대상 키워드 - {keywords}")
-    articles = collect_all_news(keywords, naver_client_id, naver_client_secret)
-    if not articles:
-        logger.warning("수집된 뉴스 기사가 없어 종료합니다.")
-        return
-
-    # 2단계 중복 필터링
-    logger.info("2단계: 유사도 그룹 분석 및 중복 제거 진행...")
-    unique_articles = cluster_and_deduplicate_articles(articles, similarity_threshold=0.25)
-    if not unique_articles:
-        logger.warning("중복 제거 후 분석할 뉴스 기사가 없어 종료합니다.")
-        return
-
-    # 구글 뉴스 URL 디코딩 및 관련 기사 디코딩
-    unique_articles = decode_news_urls(unique_articles)
-
-    # 3단계 경제 지표 수집
-    logger.info("3단계: 경제 지표 수집 시작...")
-    indicators = get_economic_indicators()
-    if indicators:
-        logger.info(f"경제 지표 수집 완료: {len(indicators)}개 지표")
-    else:
-        logger.warning("경제 지표 수집 실패 - 지표 없이 브리핑을 진행합니다.")
-
-    # 4단계 AI 브리핑 생성
-    logger.info("4단계: Gemini API를 사용하여 카테고리별 브리핑 생성 시작...")
-    ai = AIEngine(gemini_api_key)
-    briefing = ai.generate_briefing(unique_articles[:50], indicators)
-    
-    if "error" in briefing:
-        logger.error(f"브리핑 생성 실패: {briefing['error']}")
-        return
-
-    logger.info(f"AI 브리핑 생성 성공: '{briefing.get('title')}'")
-    
-    # 4.5단계: 일일 요약 이미지 생성 (AI 생성 시도 + 고화질 인포그래픽 배너 폴백)
-    logger.info("4.5단계: 일일 요약 이미지 생성 시작...")
 def restore_and_enrich_article_links(briefing, unique_articles):
     """
     AI가 생성한 각 섹션/아이템의 source_url과 related_articles를 수집된 뉴스 데이터베이스(unique_articles)와
-    정밀 비교 및 퍼지 매칭하여 100% 누락 없이 유효한 원문 기사 및 연관 기사 링크를 복원 및 보충합니다. (스팸 기사 제외)
+    정밀 비교 및 검증하여 유효한 원문 기사 및 연관 기사 링크를 보정합니다.
+    절대로 무관한 타 기사의 링크를 억지로 끼워 넣거나(폴백 금지), 메인 대표 사이트/스팸 링크를 넣지 않습니다.
     """
     if not briefing or "sections" not in briefing or not unique_articles:
         return briefing
 
-    unique_map = {art["link"]: art for art in unique_articles if is_valid_article_url(art.get("link"), title=art.get("title",""), description=art.get("description",""), source_name=art.get("source",""))}
+    unique_map = {art["link"]: art for art in unique_articles if is_valid_article_url(art.get("link"), title=art.get("title", ""), description=art.get("description", ""), source_name=art.get("source", ""))}
+
+    # 한국어 불용어 (스포츠/일반 뉴스 공통 흔한 단어: 유사도 판정에서 제외)
+    STOPWORDS = {
+        "기사", "소식", "뉴스", "경기", "선수", "결과", "시즌", "감독", "구단", "리그",
+        "오늘", "이번", "기록", "관련", "리포트", "분석", "전망", "치열", "상황", "예상",
+        "국내", "해외", "역대", "최근", "글로벌", "시장", "정세", "동향", "주요", "진행",
+        "승리", "패배", "팀", "대결", "맞대결", "종료", "후반기", "전반기", "총력전", "출전",
+        "단독", "종합", "속보", "브리핑", "진출", "확정", "시작", "예정", "선발", "교체"
+    }
 
     def find_matching_article(target_url, headline, summary):
+        # 1. URL 직접 일치 검사
         if target_url and target_url in unique_map:
             return unique_map[target_url]
         
+        # 2. URL 파라미터 정규화 일치 검사
         if target_url:
             target_norm = target_url.split("?")[0].split("#")[0].strip()
             for link, art in unique_map.items():
@@ -1109,64 +1171,93 @@ def restore_and_enrich_article_links(briefing, unique_articles):
                 if target_norm and link_norm and (target_norm == link_norm or target_norm in link_norm or link_norm in target_norm):
                     return art
 
+        # 3. 불용어 제외 핵심 키워드 일치도 정밀 검사
         text = f"{headline} {summary}"
-        words = set(re.findall(r'[가-힣a-zA-Z0-9]{2,}', text))
-        if words:
+        words = set(w for w in re.findall(r'[가-힣a-zA-Z0-9]{2,}', text) if w not in STOPWORDS)
+        if len(words) >= 3:
             best_art = None
             max_score = 0
             for art in unique_articles:
-                if is_spam_article(title=art.get("title",""), description=art.get("description",""), url=art.get("link",""), source_name=art.get("source","")):
+                if is_spam_article(title=art.get("title", ""), description=art.get("description", ""), url=art.get("link", ""), source_name=art.get("source", "")):
                     continue
                 art_text = f"{art.get('title', '')} {art.get('description', '')}"
-                art_words = set(re.findall(r'[가-힣a-zA-Z0-9]{2,}', art_text))
+                art_words = set(w for w in re.findall(r'[가-힣a-zA-Z0-9]{2,}', art_text) if w not in STOPWORDS)
                 overlap = len(words & art_words)
-                if overlap > max_score:
-                    max_score = overlap
-                    best_art = art
-            if max_score >= 2:
+                # 핵심 키워드가 최소 3개 이상 일치하고, 키워드 일치 비율이 35% 이상일 때만 매칭
+                if overlap >= 3 and (overlap / len(words)) >= 0.35:
+                    if overlap > max_score:
+                        max_score = overlap
+                        best_art = art
+            if best_art:
                 return best_art
         return None
 
-    valid_articles = [a for a in unique_articles if is_valid_article_url(a.get("link"), title=a.get("title",""), description=a.get("description",""), source_name=a.get("source",""))]
+    # 구글 뉴스 디코더 임포트 시도
+    gnewsdecoder = None
+    try:
+        from googlenewsdecoder import gnewsdecoder as _gnd
+        gnewsdecoder = _gnd
+    except ImportError:
+        pass
 
     for section in briefing.get("sections", []):
-        cat_name = section.get("category", "")
         items = section.get("items", [])
-
-        cat_articles = []
-        if "스포츠" in cat_name:
-            cat_articles = [a for a in valid_articles if any(kw in f"{a.get('title','')} {a.get('description','')}" for kw in ["스포츠", "야구", "축구", "농구", "골프", "KBO", "EPL", "MLB", "K리그", "선수", "경기", "득점", "승리"])]
-        if not cat_articles:
-            cat_articles = valid_articles
 
         for idx, item in enumerate(items):
             orig_url = item.get("source_url", "")
             headline = item.get("headline", "")
             summary = item.get("summary", "")
 
+            # 구글 뉴스 URL이 남아있다면 즉시 원문 링크로 디코딩 시도
+            if orig_url and "news.google.com" in orig_url and gnewsdecoder:
+                try:
+                    dec_res = gnewsdecoder(orig_url)
+                    if dec_res.get("status") and dec_res.get("decoded_url"):
+                        orig_url = dec_res["decoded_url"]
+                        item["source_url"] = orig_url
+                except Exception:
+                    pass
+
             matched = find_matching_article(orig_url, headline, summary)
 
             if matched:
-                if not orig_url or not is_valid_article_url(orig_url, title=headline, description=summary):
-                    item["source_url"] = matched.get("link", "")
-                if not item.get("source_name"):
-                    item["source_name"] = matched.get("source", "")
+                matched_url = matched.get("link", "")
+                if is_valid_article_url(matched_url, title=headline, description=summary):
+                    item["source_url"] = matched_url
+                item["source_name"] = get_media_name_from_url(item.get("source_url"), matched.get("source", ""))
 
-                # 실제로 동일 사건으로 클러스터링된 진짜 연관 기사만 검증 후 탑재 (억지 할당 금지)
+                # 실제로 동일 사건으로 클러스터링된 진짜 연관 기사만 검증 후 탑재
                 rel_arts = matched.get("related_articles", [])
-                rel_arts = [r for r in rel_arts if is_valid_article_url(r.get("link",""), title=r.get("title",""), source_name=r.get("source",""))]
-                item["related_articles"] = rel_arts
+                verified_rel = []
+                for r in rel_arts:
+                    r_link = r.get("link", "")
+                    if r_link and "news.google.com" in r_link and gnewsdecoder:
+                        try:
+                            dec_res = gnewsdecoder(r_link)
+                            if dec_res.get("status") and dec_res.get("decoded_url"):
+                                r_link = dec_res["decoded_url"]
+                        except Exception:
+                            pass
+                    if r_link and is_valid_article_url(r_link, title=r.get("title", ""), source_name=r.get("source", "")):
+                        verified_rel.append({
+                            "title": r.get("title", ""),
+                            "link": r_link,
+                            "source": get_media_name_from_url(r_link, r.get("source", ""))
+                        })
+                item["related_articles"] = verified_rel
             else:
-                fallback_art = cat_articles[idx % len(cat_articles)] if cat_articles else (valid_articles[idx % len(valid_articles)] if valid_articles else None)
-                if fallback_art:
-                    if not item.get("source_url") or not is_valid_article_url(item.get("source_url"), title=headline, description=summary):
-                        item["source_url"] = fallback_art.get("link", "")
-                    if not item.get("source_name"):
-                        item["source_name"] = fallback_art.get("source", "")
-                # 연관 기사가 없는 경우 억지로 다른 기사를 붙이지 않고 빈 리스트 유지
+                # ★절대 무관한 다른 기사의 링크를 억지로 끼워넣는 폴백 금지★
+                # 기존 URL이 유효한 개별 기사 URL이면 유지, 아니면 빈 문자열로 초기화
+                if orig_url and is_valid_article_url(orig_url, title=headline, description=summary):
+                    item["source_url"] = orig_url
+                    item["source_name"] = get_media_name_from_url(orig_url, item.get("source_name", ""))
+                else:
+                    item["source_url"] = ""
+                    item["source_name"] = ""
                 item["related_articles"] = []
 
     return briefing
+
 
 def main():
     logger.info("Daily Briefing Standalone Agent 시작...")
@@ -1174,7 +1265,7 @@ def main():
     gemini_api_key = _clean_env_val(os.environ.get("GEMINI_API_KEY"))
     naver_client_id = _clean_env_val(os.environ.get("NAVER_CLIENT_ID"))
     naver_client_secret = _clean_env_val(os.environ.get("NAVER_CLIENT_SECRET"))
-    keywords_env = _clean_env_val(os.environ.get("NEWS_KEYWORDS")) or "인공지능, 빅테크, IT 트렌드, 거시 경제, 금융 증시, 금리 환율 부동산, 국제 정세, 국내 정치, KBO 프로야구, 해외축구 EPL, 메이저리그 MLB"
+    keywords_env = _clean_env_val(os.environ.get("NEWS_KEYWORDS")) or "인공지능, 빅테크, IT 트렌드, 거시 경제, 금융 증시, 금리 환율 부동산, 국제 정세, 국내 정치, KBO 프로야구, 해외축구 손흥민 EPL, 메이저리그 MLB"
     keywords = [k.strip() for k in keywords_env.split(",") if k.strip()]
 
     slack_webhook = _clean_env_val(os.environ.get("SLACK_WEBHOOK_URL"))
@@ -1196,6 +1287,9 @@ def main():
     # 2단계 정제 & 유사도 클러스터링
     logger.info("2단계: 뉴스 정제 및 유사도 클러스터링 시작...")
     unique_articles = cluster_and_deduplicate_articles(all_articles)
+
+    # 2.5단계 구글 뉴스 URL 병렬 디코딩 (원문 언론사 직접 링크 변환)
+    unique_articles = decode_news_urls(unique_articles)
 
     # 3단계 경제 지표 수집
     logger.info("3단계: 경제 지표 수집 시작...")
