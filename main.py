@@ -1280,6 +1280,23 @@ def send_email(title, html_body, image_bytes=None):
         except Exception as e:
             logger.warning(f"이미지 MIME 첨부 실패: {e}")
 
+    # ── 전체 브리핑 원고 HTML 문서(.html) 첨부파일 동봉 ──
+    try:
+        attachment_html = html_body
+        if image_bytes:
+            import base64
+            b64_img = base64.b64encode(image_bytes).decode('utf-8')
+            data_uri = f"data:image/jpeg;base64,{b64_img}"
+            attachment_html = attachment_html.replace('cid:summary_image', data_uri)
+            
+        html_attachment = MIMEText(attachment_html, "html", "utf-8")
+        html_filename = f"DailyBriefing_{today_str}.html"
+        html_attachment.add_header("Content-Disposition", "attachment", filename=html_filename)
+        msg_root.attach(html_attachment)
+        logger.info(f"📎 브리핑 리포트 HTML 문서 첨부파일 동봉 완료: {html_filename}")
+    except Exception as e:
+        logger.warning(f"HTML 첨부파일 생성 중 오류 (계속 진행): {e}")
+
     try:
         if smtp_port == 465:
             server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=10)
