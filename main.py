@@ -424,40 +424,83 @@ def collect_all_news(keywords, naver_id=None, naver_secret=None, limit_per_keywo
     return all_articles
 
 def get_economic_indicators():
-    """야후 파이낸스 API를 통해 주요 경제 지표(코스피, 코스닥, 환율, 나스닥, 다우)를 수집합니다."""
+    """야후 파이낸스 API를 통해 4대 카테고리(국내 지표, 해외 지표, 환율, 유가)의 주요 지표 10종을 수집합니다."""
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
     }
-    symbols = {
-        '코스피 (KOSPI)': '^KS11',
-        '코스닥 (KOSDAQ)': '^KQ11',
-        '원/달러 환율': 'USDKRW=X',
-        '나스닥 (NASDAQ)': '^IXIC',
-        '다우존스 (DOW)': '^DJI'
-    }
+    
+    # 4대 카테고리별 지표 및 심볼 정의
+    categories_config = [
+        {
+            "category": "국내 지표",
+            "items": [
+                {"name": "코스피 (KOSPI)", "sym": "^KS11", "unit": "pt"},
+                {"name": "코스닥 (KOSDAQ)", "sym": "^KQ11", "unit": "pt"},
+                {"name": "삼성전자 (시총 1위)", "sym": "005930.KS", "unit": "원"},
+                {"name": "SK하이닉스 (시총 2위)", "sym": "000660.KS", "unit": "원"},
+            ]
+        },
+        {
+            "category": "해외 지표",
+            "items": [
+                {"name": "나스닥 (NASDAQ)", "sym": "^IXIC", "unit": "pt"},
+                {"name": "다우존스 (DOW)", "sym": "^DJI", "unit": "pt"},
+            ]
+        },
+        {
+            "category": "환율",
+            "items": [
+                {"name": "원/달러 환율", "sym": "USDKRW=X", "unit": "원"},
+                {"name": "원/유로 환율", "sym": "EURKRW=X", "unit": "원"},
+                {"name": "원/엔 환율 (100엔)", "sym": "JPYKRW=X", "unit": "원", "is_100yen": True},
+            ]
+        },
+        {
+            "category": "유가",
+            "items": [
+                {"name": "WTI 원유", "sym": "CL=F", "unit": "$"},
+            ]
+        }
+    ]
+
     indicators = {}
-    for name, sym in symbols.items():
-        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{sym}?interval=1d&range=1d"
-        try:
-            r = requests.get(url, headers=headers, timeout=5)
-            if r.status_code == 200:
-                data = r.json()
-                if 'chart' in data and 'result' in data['chart'] and data['chart']['result']:
-                    meta = data['chart']['result'][0]['meta']
-                    price = meta.get('regularMarketPrice')
-                    prev_close = meta.get('previousClose') or meta.get('chartPreviousClose')
-                    if price is not None and prev_close is not None:
-                        change = price - prev_close
-                        pct = (change / prev_close) * 100 if prev_close else 0
-                        indicators[name] = {
-                            'price': price,
-                            'change': change,
-                            'pct': pct
-                        }
-                        continue
-            logger.warning(f"경제 지표 수집 실패 ({name}): API 응답 이상")
-        except Exception as e:
-            logger.error(f"경제 지표 수집 중 에러 발생 ({name}): {e}")
+    for cat_info in categories_config:
+        cat_name = cat_info["category"]
+        for item in cat_info["items"]:
+            name = item["name"]
+            sym = item["sym"]
+            unit = item["unit"]
+            is_100yen = item.get("is_100yen", False)
+            
+            url = f"https://query1.finance.yahoo.com/v8/finance/chart/{sym}?interval=1d&range=1d"
+            try:
+                r = requests.get(url, headers=headers, timeout=5)
+                if r.status_code == 200:
+                    data = r.json()
+                    if 'chart' in data and 'result' in data['chart'] and data['chart']['result']:
+                        meta = data['chart']['result'][0]['meta']
+                        price = meta.get('regularMarketPrice')
+                        prev_close = meta.get('previousClose') or meta.get('chartPreviousClose')
+                        if price is not None and prev_close is not None:
+                            change = price - prev_close
+                            pct = (change / prev_close) * 100 if prev_close else 0
+                            
+                            # 100엔 환산 처리
+                            if is_100yen:
+                                price *= 100
+                                change *= 100
+                                
+                            indicators[name] = {
+                                'price': price,
+                                'change': change,
+                                'pct': pct,
+                                'category': cat_name,
+                                'unit': unit
+                            }
+                            continue
+                logger.warning(f"경제 지표 수집 실패 ({name}): API 응답 이상")
+            except Exception as e:
+                logger.error(f"경제 지표 수집 중 에러 발생 ({name}): {e}")
     return indicators
 
 
@@ -623,9 +666,16 @@ class AIEngine:
 
         indicators_text = ""
         if indicators:
-            indicators_text = "현재 주요 경제 지표:\n"
+            indicators_text = "현재 주요 경제 지표 (4대 카테고리):\n"
+            by_ind_cat = {}
             for name, val in indicators.items():
-                indicators_text += f"- {name}: {val['price']:,.2f} (전일비 {val['change']:+,.2f}, {val['pct']:+.2f}%)\n"
+                cat = val.get("category", "기타 지표")
+                by_ind_cat.setdefault(cat, []).append((name, val))
+            for cat, items in by_ind_cat.items():
+                indicators_text += f"[{cat}]\n"
+                for name, val in items:
+                    unit = val.get("unit", "")
+                    indicators_text += f"- {name}: {val['price']:,.2f}{unit} (전일비 {val['change']:+,.2f}, {val['pct']:+.2f}%)\n"
             indicators_text += "\n"
 
         prompt = f"""당신은 글로벌 탑티어 전략 컨설팅 펌(맥킨지, BCG) 및 최고급 투자기관의 [수석 경제·산업 전략 애널리스트(Chief Strategy Analyst)]입니다.
@@ -885,11 +935,108 @@ def generate_summary_image(ai_engine, briefing_data, indicators=None):
     return None
 
 
+def _render_indicator_cards(indicators):
+    """
+    경제 지표를 4대 카테고리(국내 지표, 해외 지표, 환율, 유가)의
+    모바일/이메일 완벽 호환 요약 카드 그리드로 렌더링합니다.
+    """
+    if not indicators:
+        return ""
+        
+    category_order = ["국내 지표", "해외 지표", "환율", "유가"]
+    category_icons = {
+        "국내 지표": "🇰🇷",
+        "해외 지표": "🌐",
+        "환율": "💱",
+        "유가": "🛢️"
+    }
+    
+    # 카테고리별로 지표 분류
+    by_cat = {c: [] for c in category_order}
+    for name, val in indicators.items():
+        cat = val.get("category")
+        if cat in by_cat:
+            by_cat[cat].append((name, val))
+        else:
+            by_cat.setdefault("기타 지표", []).append((name, val))
+            
+    html_parts = []
+    html_parts.append("""
+    <!-- 경제 지표 스마트 요약 카드 섹션 -->
+    <div style="margin-bottom: 28px;">
+      <div style="display: inline-block; background-color: #059669; color: #FFFFFF; font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 4px; margin-bottom: 12px; letter-spacing: 0.5px;">📈 글로벌 주요 경제 지표 요약</div>
+    """)
+    
+    for cat in category_order:
+        items = by_cat.get(cat, [])
+        if not items:
+            continue
+            
+        icon = category_icons.get(cat, "📊")
+        html_parts.append(f"""
+      <!-- 카테고리: {cat} -->
+      <div style="font-size: 12px; font-weight: 700; color: #475569; margin: 12px 0 8px 2px;">{icon} {cat}</div>
+      <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; border-spacing: 6px; margin-bottom: 6px;">
+        """)
+        
+        # 2열 그리드로 행 구성
+        for i in range(0, len(items), 2):
+            html_parts.append("        <tr>")
+            chunk = items[i:i+2]
+            for name, val in chunk:
+                price_str = f"{val['price']:,.2f}"
+                change = val['change']
+                pct = val['pct']
+                unit = val.get('unit', '')
+                
+                # 등락 색상 및 기호 (상승 빨강, 하락 파랑)
+                if change > 0:
+                    color = "#DC2626"
+                    arrow = "▲"
+                    bg_badge = "#FEE2E2"
+                elif change < 0:
+                    color = "#2563EB"
+                    arrow = "▼"
+                    bg_badge = "#DBEAFE"
+                else:
+                    color = "#64748B"
+                    arrow = "-"
+                    bg_badge = "#F1F5F9"
+                    
+                html_parts.append(f"""
+          <td style="width: 50%; vertical-align: top; padding: 0;">
+            <div style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-left: 3px solid {color}; border-radius: 8px; padding: 10px 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
+              <div style="font-size: 11px; font-weight: 600; color: #64748B; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{name}</div>
+              <div style="font-size: 15px; font-weight: 800; color: #0F172A; margin-bottom: 4px; line-height: 1.2;">
+                {price_str} <span style="font-size: 11px; font-weight: 500; color: #64748B;">{unit}</span>
+              </div>
+              <div style="display: inline-block; background-color: {bg_badge}; color: {color}; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px; line-height: 1.2;">
+                {arrow} {abs(change):,.2f} ({pct:+.2f}%)
+              </div>
+            </div>
+          </td>""")
+            
+            # 홀수 개 아이템일 때 우측 빈 칸 채우기
+            if len(chunk) == 1:
+                html_parts.append("""
+          <td style="width: 50%; vertical-align: top; padding: 0;"></td>""")
+                
+            html_parts.append("        </tr>")
+            
+        html_parts.append("      </table>")
+        
+    html_parts.append("""
+    </div>
+    <hr style="border: 0; border-top: 1px solid #E2E8F0; margin: 4px 0 24px 0;">""")
+    
+    return "\n".join(html_parts)
+
+
 def format_briefing_to_html(briefing_data, indicators=None, has_image=False):
     """
     브리핑 데이터를 최고급 전략 인텔리전스 리포트 HTML 이메일 문서로 변환합니다.
     - 최상단: 브리핑 헤더 & 핵심 총평 & 오늘의 3대 전략 인사이트 & 핵심 주목 기업 (Watchlist)
-    - 글로벌 주요 경제 지표 테이블
+    - 4대 카테고리별 글로벌 주요 경제 지표 요약 카드
     - 6대 카테고리별 섹션: 팩트 요약, 심층 인사이트(Why It Matters), 관련 기업 & 밸류체인 분석, 원문 링크
     """
     title = briefing_data.get("title", "오늘의 일일 브리핑")
@@ -966,40 +1113,9 @@ def format_briefing_to_html(briefing_data, indicators=None, has_image=False):
         parts.append("""
     </div>""")
 
-    # ── 3. 글로벌 주요 경제 지표 테이블 ──
+    # ── 3. 4대 카테고리별 글로벌 주요 경제 지표 요약 카드 ──
     if indicators:
-        parts.append("""
-    <!-- 경제 지표 섹션 -->
-    <div style="margin-bottom: 28px;">
-      <div style="display: inline-block; background-color: #059669; color: #FFFFFF; font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 4px; margin-bottom: 14px; letter-spacing: 0.5px;">📈 글로벌 주요 경제 지표</div>
-      <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 4px;">
-        <tr style="background-color: #F8FAFC; border-bottom: 2px solid #E2E8F0;">
-          <th style="padding: 10px 8px; text-align: left; color: #64748B; font-weight: 600; font-size: 12px;">지표</th>
-          <th style="padding: 10px 8px; text-align: right; color: #64748B; font-weight: 600; font-size: 12px;">현재가</th>
-          <th style="padding: 10px 8px; text-align: right; color: #64748B; font-weight: 600; font-size: 12px;">전일비</th>
-          <th style="padding: 10px 8px; text-align: right; color: #64748B; font-weight: 600; font-size: 12px;">등락률</th>
-        </tr>""")
-        for name, val in indicators.items():
-            price_str = f"{val['price']:,.2f}"
-            change = val['change']
-            pct = val['pct']
-            if change > 0:
-                color = "#DC2626"; arrow = "▲"
-            elif change < 0:
-                color = "#2563EB"; arrow = "▼"
-            else:
-                color = "#64748B"; arrow = "-"
-            parts.append(f"""
-        <tr style="border-bottom: 1px solid #F1F5F9;">
-          <td style="padding: 10px 8px; font-weight: 600; color: #1E293B;">{name}</td>
-          <td style="padding: 10px 8px; text-align: right; font-weight: 700; color: #1E293B;">{price_str}</td>
-          <td style="padding: 10px 8px; text-align: right; color: {color}; font-weight: 700;">{arrow} {abs(change):,.2f}</td>
-          <td style="padding: 10px 8px; text-align: right; color: {color}; font-weight: 700;">{pct:+.2f}%</td>
-        </tr>""")
-        parts.append("""
-      </table>
-    </div>
-    <hr style="border: 0; border-top: 1px solid #E2E8F0; margin: 0 0 24px 0;">""")
+        parts.append(_render_indicator_cards(indicators))
 
     # ── 4. 카테고리별 섹션 ──
     for sec in sections:

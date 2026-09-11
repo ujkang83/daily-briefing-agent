@@ -2,3 +2,5 @@
 AppPW.txt
 __pycache__/
 *.pyc
+*_backup_*.py
+daily_summary_latest.jpg
