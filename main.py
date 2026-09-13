@@ -935,7 +935,7 @@ def generate_summary_image(ai_engine, briefing_data, indicators=None):
     return None
 
 
-def _render_indicator_cards(indicators):
+def _render_indicator_cards(indicators, for_local_viewer=False):
     """
     경제 지표를 4대 카테고리(국내 지표, 해외 지표, 환율, 유가)의
     모바일/이메일 완벽 호환 요약 카드 그리드로 렌더링합니다.
@@ -960,11 +960,16 @@ def _render_indicator_cards(indicators):
         else:
             by_cat.setdefault("기타 지표", []).append((name, val))
             
+    indicator_copy_btn = """<button class="no-copy" onclick="copyCardAsImage('briefing-economic-indicators-card', '경제 지표 요약 카드')" style="cursor: pointer; background: #059669; color: #FFFFFF; border: none; padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 700; box-shadow: 0 2px 5px rgba(5,150,105,0.3); transition: all 0.2s;">📸 지표 카드 복사</button>""" if for_local_viewer else ""
+
     html_parts = []
-    html_parts.append("""
+    html_parts.append(f"""
     <!-- 경제 지표 스마트 요약 카드 섹션 -->
-    <div style="margin-bottom: 28px;">
-      <div style="display: inline-block; background-color: #059669; color: #FFFFFF; font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 4px; margin-bottom: 12px; letter-spacing: 0.5px;">📈 글로벌 주요 경제 지표 요약</div>
+    <div id="briefing-economic-indicators-card" style="margin-bottom: 28px; background-color: #FFFFFF; border-radius: 12px; padding: 16px 14px; border: 1px solid #E2E8F0; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <div style="display: inline-block; background-color: #059669; color: #FFFFFF; font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 4px; letter-spacing: 0.5px;">📈 글로벌 주요 경제 지표 요약</div>
+        {indicator_copy_btn}
+      </div>
     """)
     
     for cat in category_order:
@@ -1004,22 +1009,20 @@ def _render_indicator_cards(indicators):
                     bg_badge = "#F1F5F9"
                     
                 html_parts.append(f"""
-          <td style="width: 50%; vertical-align: top; padding: 0;">
-            <div style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-left: 3px solid {color}; border-radius: 8px; padding: 10px 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
-              <div style="font-size: 11px; font-weight: 600; color: #64748B; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{name}</div>
-              <div style="font-size: 15px; font-weight: 800; color: #0F172A; margin-bottom: 4px; line-height: 1.2;">
-                {price_str} <span style="font-size: 11px; font-weight: 500; color: #64748B;">{unit}</span>
-              </div>
-              <div style="display: inline-block; background-color: {bg_badge}; color: {color}; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px; line-height: 1.2;">
-                {arrow} {abs(change):,.2f} ({pct:+.2f}%)
-              </div>
+          <td style="width: 50%; vertical-align: top; background-color: #F8FAFC; border: 1px solid #E2E8F0; border-left: 4px solid {color}; border-radius: 8px; padding: 10px 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
+            <div style="font-size: 11px; font-weight: 600; color: #64748B; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{name}</div>
+            <div style="font-size: 15px; font-weight: 800; color: #0F172A; margin-bottom: 4px; line-height: 1.2;">
+              {price_str} <span style="font-size: 11px; font-weight: 500; color: #64748B;">{unit}</span>
+            </div>
+            <div style="display: inline-block; background-color: {bg_badge}; color: {color}; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px; line-height: 1.2;">
+              {arrow} {abs(change):,.2f} ({pct:+.2f}%)
             </div>
           </td>""")
             
             # 홀수 개 아이템일 때 우측 빈 칸 채우기
             if len(chunk) == 1:
                 html_parts.append("""
-          <td style="width: 50%; vertical-align: top; padding: 0;"></td>""")
+          <td style="width: 50%; vertical-align: top; padding: 0; border: none; background: transparent;"></td>""")
                 
             html_parts.append("        </tr>")
             
@@ -1032,12 +1035,256 @@ def _render_indicator_cards(indicators):
     return "\n".join(html_parts)
 
 
-def format_briefing_to_html(briefing_data, indicators=None, has_image=False):
+def _get_naver_blog_toolbar_and_script():
     """
-    브리핑 데이터를 최고급 전략 인텔리전스 리포트 HTML 이메일 문서로 변환합니다.
+    네이버 블로그 포스팅을 위한 상단 고정 원클릭 복사 도우미 툴바와 html2canvas 캡처 스크립트를 반환합니다.
+    """
+    toolbar_html = """
+<!-- ===== 네이버 블로그 포스팅 원클릭 복사 도우미 툴바 ===== -->
+<div id="naver-blog-toolbar" style="position: sticky; top: 0; z-index: 10000; background: #0F172A; color: #FFFFFF; padding: 12px 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); border-bottom: 2px solid #6366F1; font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', Arial, sans-serif;">
+  <div style="max-width: 720px; margin: 0 auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;">
+    <div>
+      <div style="font-size: 14px; font-weight: 800; color: #38BDF8; display: flex; align-items: center; gap: 6px;">
+        <span>📋 네이버 블로그 포스팅 원클릭 복사 도우미</span>
+      </div>
+      <div style="font-size: 11px; color: #94A3B8; margin-top: 2px;">
+        상단 버튼 또는 각 카드 우측 복사 버튼을 누르면 클립보드에 자동 복사됩니다! 블로그 에디터에서 [Ctrl + V] 하세요.
+      </div>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+      <button onclick="copyAllContent()" style="background: linear-gradient(135deg, #2563EB, #1D4ED8); color: #FFFFFF; border: none; padding: 8px 14px; border-radius: 6px; font-size: 12px; font-weight: 800; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 8px rgba(37,99,235,0.4);">
+        📋 전체 복사 (텍스트/표 1회 붙여넣기)
+      </button>
+      <button onclick="copyCardAsImage('briefing-core-summary-card', '총평 요약 카드')" style="background: linear-gradient(135deg, #6366F1, #4F46E5); color: #FFFFFF; border: none; padding: 8px 13px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 6px rgba(99,102,241,0.4);">
+        📸 총평 카드 (이미지)
+      </button>
+      <button onclick="copyCardAsImage('briefing-economic-indicators-card', '경제 지표 요약')" style="background: linear-gradient(135deg, #059669, #047857); color: #FFFFFF; border: none; padding: 8px 13px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 6px rgba(5,150,105,0.4);">
+        📊 경제 지표 (이미지)
+      </button>
+      <button onclick="copyNewsText()" style="background: #334155; color: #F1F5F9; border: 1px solid #475569; padding: 8px 12px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.2s;">
+        📝 뉴스 본문만 복사
+      </button>
+      <button onclick="downloadAllCards()" style="background: #1E293B; color: #94A3B8; border: 1px solid #334155; padding: 8px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer;" title="클립보드 대신 이미지 파일로 다운로드">
+        💾 이미지 저장
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- 토스트 알림창 -->
+<div id="copy-toast" style="display: none; position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #10B981; color: #FFFFFF; padding: 12px 24px; border-radius: 30px; font-size: 13px; font-weight: 700; box-shadow: 0 6px 20px rgba(0,0,0,0.3); z-index: 10001; text-align: center; transition: opacity 0.3s ease;">
+</div>
+"""
+
+    script_html = """
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script>
+function showToast(message, bgColor) {
+  const toast = document.getElementById('copy-toast');
+  if (!toast) return;
+  toast.innerText = message;
+  toast.style.background = bgColor || '#10B981';
+  toast.style.display = 'block';
+  toast.style.opacity = '1';
+  clearTimeout(window.toastTimer);
+  window.toastTimer = setTimeout(() => {
+    toast.style.opacity = '0';
+    setTimeout(() => { toast.style.display = 'none'; }, 300);
+  }, 3500);
+}
+
+async function copyCardAsImage(elementId, cardName) {
+  const el = document.getElementById(elementId);
+  if (!el) {
+    showToast('❌ 요소를 찾을 수 없습니다: ' + cardName, '#EF4444');
+    return;
+  }
+  if (typeof html2canvas === 'undefined') {
+    showToast('⏳ 캡처 엔진 로드 중입니다. 잠시 후 다시 클릭해 주세요.', '#3B82F6');
+    return;
+  }
+  showToast('⏳ ' + cardName + ' 고화질 이미지 생성 중...', '#3B82F6');
+  try {
+    const canvas = await html2canvas(el, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#FFFFFF',
+      logging: false,
+      ignoreElements: (element) => element.classList && element.classList.contains('no-copy')
+    });
+    canvas.toBlob(async (blob) => {
+      if (!blob) {
+        showToast('❌ 이미지 생성에 실패했습니다.', '#EF4444');
+        return;
+      }
+      try {
+        const item = new ClipboardItem({ 'image/png': blob });
+        await navigator.clipboard.write([item]);
+        showToast('✅ ' + cardName + ' 이미지가 복사되었습니다! 네이버 블로그에서 [Ctrl+V] 하세요.', '#10B981');
+      } catch (err) {
+        console.warn('클립보드 직접 쓰기 제한, 파일 다운로드로 전환:', err);
+        downloadBlob(blob, cardName + '.png');
+        showToast('⚠️ 클립보드 보안 제한으로 이미지 파일로 자동 다운로드되었습니다! (블로그에 사진 첨부)', '#F59E0B');
+      }
+    }, 'image/png');
+  } catch (err) {
+    console.error(err);
+    showToast('❌ 이미지 캡처 실패: ' + err.message, '#EF4444');
+  }
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+async function downloadAllCards() {
+  await downloadSingleCard('briefing-core-summary-card', '01_오늘의_핵심_총평_카드.png');
+  setTimeout(async () => {
+    await downloadSingleCard('briefing-economic-indicators-card', '02_글로벌_주요_경제지표_카드.png');
+  }, 600);
+}
+
+async function downloadSingleCard(elementId, filename) {
+  const el = document.getElementById(elementId);
+  if (!el || typeof html2canvas === 'undefined') return;
+  try {
+    const canvas = await html2canvas(el, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#FFFFFF',
+      logging: false,
+      ignoreElements: (element) => element.classList && element.classList.contains('no-copy')
+    });
+    canvas.toBlob((blob) => {
+      if (blob) {
+        downloadBlob(blob, filename);
+        showToast('💾 ' + filename + ' 다운로드 완료!', '#10B981');
+      }
+    }, 'image/png');
+  } catch(e) {
+    console.error(e);
+  }
+}
+
+async function copyAllContent() {
+  const container = document.getElementById('briefing-content-body');
+  if (!container) {
+    showToast('❌ 복사할 본문 컨테이너를 찾을 수 없습니다.', '#EF4444');
+    return;
+  }
+  try {
+    const clone = container.cloneNode(true);
+    clone.querySelectorAll('.no-copy').forEach(el => el.remove());
+    const htmlContent = clone.innerHTML;
+    const textContent = clone.innerText;
+    
+    if (navigator.clipboard && window.ClipboardItem) {
+      const blobText = new Blob([textContent], { type: 'text/plain' });
+      const blobHtml = new Blob([htmlContent], { type: 'text/html' });
+      await navigator.clipboard.write([new ClipboardItem({ 'text/plain': blobText, 'text/html': blobHtml })]);
+    } else {
+      await navigator.clipboard.writeText(textContent);
+    }
+    showToast('🎉 전체 브리핑(총평+지표+뉴스) 복사 완료! 네이버 블로그에 [Ctrl+V] 하세요.', '#10B981');
+  } catch (err) {
+    console.warn(err);
+    const clone = container.cloneNode(true);
+    clone.querySelectorAll('.no-copy').forEach(el => el.remove());
+    document.body.appendChild(clone);
+    clone.style.position = 'fixed';
+    clone.style.left = '-9999px';
+    const range = document.createRange();
+    range.selectNode(clone);
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+    document.execCommand('copy');
+    window.getSelection().removeAllRanges();
+    document.body.removeChild(clone);
+    showToast('🎉 전체 브리핑(총평+지표+뉴스) 복사 완료! 네이버 블로그에 [Ctrl+V] 하세요.', '#10B981');
+  }
+}
+
+async function copyNewsText() {
+  const container = document.getElementById('briefing-news-sections-container');
+  if (!container) {
+    showToast('❌ 뉴스 본문 컨테이너를 찾을 수 없습니다.', '#EF4444');
+    return;
+  }
+  try {
+    const clone = container.cloneNode(true);
+    clone.querySelectorAll('.no-copy').forEach(el => el.remove());
+    const htmlContent = clone.innerHTML;
+    const textContent = clone.innerText;
+    
+    if (navigator.clipboard && window.ClipboardItem) {
+      const blobText = new Blob([textContent], { type: 'text/plain' });
+      const blobHtml = new Blob([htmlContent], { type: 'text/html' });
+      await navigator.clipboard.write([new ClipboardItem({ 'text/plain': blobText, 'text/html': blobHtml })]);
+    } else {
+      await navigator.clipboard.writeText(textContent);
+    }
+    showToast('✅ 뉴스 본문이 복사되었습니다! 네이버 블로그에 [Ctrl+V] 하세요.', '#10B981');
+  } catch (err) {
+    console.warn(err);
+    const clone = container.cloneNode(true);
+    clone.querySelectorAll('.no-copy').forEach(el => el.remove());
+    document.body.appendChild(clone);
+    clone.style.position = 'fixed';
+    clone.style.left = '-9999px';
+    const range = document.createRange();
+    range.selectNode(clone);
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+    document.execCommand('copy');
+    window.getSelection().removeAllRanges();
+    document.body.removeChild(clone);
+    showToast('✅ 뉴스 본문이 복사되었습니다! 네이버 블로그에 [Ctrl+V] 하세요.', '#10B981');
+  }
+}
+
+async function copyNewsCard(cardId) {
+  const el = document.getElementById(cardId);
+  if (!el) {
+    showToast('❌ 기사 요소를 찾을 수 없습니다.', '#EF4444');
+    return;
+  }
+  try {
+    const clone = el.cloneNode(true);
+    clone.querySelectorAll('.no-copy').forEach(n => n.remove());
+    const htmlContent = clone.outerHTML;
+    const textContent = clone.innerText;
+    if (navigator.clipboard && window.ClipboardItem) {
+      const blobText = new Blob([textContent], { type: 'text/plain' });
+      const blobHtml = new Blob([htmlContent], { type: 'text/html' });
+      await navigator.clipboard.write([new ClipboardItem({ 'text/plain': blobText, 'text/html': blobHtml })]);
+    } else {
+      await navigator.clipboard.writeText(textContent);
+    }
+    showToast('✅ 기사가 복사되었습니다! 네이버 블로그에 [Ctrl+V] 하세요.', '#10B981');
+  } catch (err) {
+    console.error(err);
+    showToast('❌ 기사 복사 실패: ' + err.message, '#EF4444');
+  }
+}
+</script>
+"""
+    return toolbar_html, script_html
+
+
+def format_briefing_to_html(briefing_data, indicators=None, has_image=False, for_local_viewer=False):
+    """
+    브리핑 데이터를 최고급 전략 인텔리전스 리포트 HTML 이메일/로컬 뷰어 문서로 변환합니다.
     - 최상단: 브리핑 헤더 & 핵심 총평 & 오늘의 3대 전략 인사이트 & 핵심 주목 기업 (Watchlist)
     - 4대 카테고리별 글로벌 주요 경제 지표 요약 카드
     - 6대 카테고리별 섹션: 팩트 요약, 심층 인사이트(Why It Matters), 관련 기업 & 밸류체인 분석, 원문 링크
+    - for_local_viewer=True인 경우 네이버 블로그 원클릭 카드 복사 도우미 툴바 및 캡처 스크립트가 탑재됩니다.
     """
     title = briefing_data.get("title", "오늘의 일일 브리핑")
     daily_summary = briefing_data.get("daily_summary") or briefing_data.get("short_summary_for_sns") or ""
@@ -1054,12 +1301,19 @@ def format_briefing_to_html(briefing_data, indicators=None, has_image=False):
     parts = []
 
     # ── HTML 시작 ──
-    parts.append(f"""<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin: 0; padding: 0; background-color: #F1F5F9; font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+    parts.append(f"""<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>{title}</title></head>
+<body style="margin: 0; padding: 0; background-color: #F1F5F9; font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', Arial, sans-serif; -webkit-font-smoothing: antialiased;">""")
 
+    # 네이버 블로그 복사 툴바 (로컬 뷰어 전용)
+    toolbar_html, script_html = _get_naver_blog_toolbar_and_script() if for_local_viewer else ("", "")
+    if for_local_viewer and toolbar_html:
+        parts.append(toolbar_html)
+
+    parts.append(f"""
 <!-- 외부 컨테이너 -->
-<div style="max-width: 660px; margin: 20px auto; background-color: #FFFFFF; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.08); overflow: hidden;">
+<div id="briefing-root-container" style="max-width: 660px; margin: 20px auto; background-color: #FFFFFF; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.08); overflow: hidden;">
 
   <!-- ===== 헤더 ===== -->
   <div style="background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%); padding: 32px 24px; text-align: center;">
@@ -1069,7 +1323,7 @@ def format_briefing_to_html(briefing_data, indicators=None, has_image=False):
   </div>
 
   <!-- ===== 본문 영역 ===== -->
-  <div style="padding: 24px 20px;">""")
+  <div id="briefing-content-body" style="padding: 24px 20px;">""")
 
     # ── 1. 일일 요약 이미지 (생성된 경우만) ──
     if has_image:
@@ -1082,43 +1336,55 @@ def format_briefing_to_html(briefing_data, indicators=None, has_image=False):
     if daily_summary or executive_insights:
         summary_html = daily_summary.replace("\n", "<br>") if daily_summary else ""
         margin_b = "14px" if executive_insights else "0"
+        summary_copy_btn = """<button class="no-copy" onclick="copyCardAsImage('briefing-core-summary-card', '총평 요약 카드')" style="cursor: pointer; background: #4F46E5; color: #FFFFFF; border: none; padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 700; box-shadow: 0 2px 5px rgba(79,70,229,0.3); transition: all 0.2s;">📸 총평 카드 복사</button>""" if for_local_viewer else ""
         parts.append(f"""
-    <!-- 전략적 인텔리전스 총평 카드 -->
-    <div style="margin-bottom: 26px; padding: 20px 22px; background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%); border-radius: 12px; border-left: 5px solid #6366F1; box-shadow: 0 2px 8px rgba(99, 102, 241, 0.08);">
-      <div style="font-size: 12px; font-weight: 700; color: #4F46E5; margin-bottom: 6px; letter-spacing: 0.5px;">🎯 오늘의 핵심 브리핑 총평 (CORE THESIS)</div>
-      <div style="font-size: 15px; font-weight: 700; color: #1E293B; line-height: 1.6; margin-bottom: {margin_b};">{summary_html}</div>""")
+    <!-- 전략적 인텔리전스 총평 카드 (네이버 블로그 표 컴포넌트 호환) -->
+    <table id="briefing-core-summary-card" role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin-bottom: 26px;">
+      <tr>
+        <td style="padding: 20px 22px; background-color: #EEF2FF; background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%); border: 1px solid #C7D2FE; border-left: 5px solid #6366F1; border-radius: 12px; box-shadow: 0 2px 8px rgba(99, 102, 241, 0.08);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <div style="font-size: 12px; font-weight: 700; color: #4F46E5; letter-spacing: 0.5px;">🎯 오늘의 핵심 브리핑 총평 (CORE THESIS)</div>
+            {summary_copy_btn}
+          </div>
+          <div style="font-size: 15px; font-weight: 700; color: #1E293B; line-height: 1.6; margin-bottom: {margin_b};">{summary_html}</div>""")
 
         if executive_insights:
             parts.append("""
-      <div style="padding-top: 12px; border-top: 1px solid rgba(99, 102, 241, 0.2);">
-        <div style="font-size: 12px; font-weight: 700; color: #4338CA; margin-bottom: 8px;">💡 오늘의 3대 전략적 관전 포인트 (KEY STRATEGIC INSIGHTS)</div>""")
+          <div style="padding-top: 12px; border-top: 1px solid rgba(99, 102, 241, 0.2);">
+            <div style="font-size: 12px; font-weight: 700; color: #4338CA; margin-bottom: 8px;">💡 오늘의 3대 전략적 관전 포인트 (KEY STRATEGIC INSIGHTS)</div>""")
             for idx, insight in enumerate(executive_insights[:3]):
                 clean_insight = str(insight).strip()
                 parts.append(f"""
-        <div style="font-size: 13px; color: #334155; line-height: 1.5; margin-bottom: 6px;">
-          <span style="font-weight: 700; color: #6366F1;">⚡ [{idx+1}]</span> {clean_insight}
-        </div>""")
+            <div style="font-size: 13px; color: #334155; line-height: 1.5; margin-bottom: 6px;">
+              <span style="font-weight: 700; color: #6366F1;">⚡ [{idx+1}]</span> {clean_insight}
+            </div>""")
             parts.append("""
-      </div>""")
+          </div>""")
 
         # 핵심 주목 기업 배지 (Watchlist)
         if watchlist_companies:
             badges_html = " ".join([f'<span style="display: inline-block; background-color: #FFFFFF; color: #312E81; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 6px; margin: 3px 4px 3px 0; border: 1px solid #C7D2FE; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">{c}</span>' for c in watchlist_companies[:5]])
             parts.append(f"""
-      <div style="margin-top: 12px; padding-top: 10px; border-top: 1px dashed rgba(99, 102, 241, 0.2);">
-        <div style="font-size: 11px; font-weight: 700; color: #4338CA; margin-bottom: 6px;">🔥 오늘의 핵심 주목 기업 (KEY WATCHLIST)</div>
-        <div>{badges_html}</div>
-      </div>""")
+          <div style="margin-top: 12px; padding-top: 10px; border-top: 1px dashed rgba(99, 102, 241, 0.2);">
+            <div style="font-size: 11px; font-weight: 700; color: #4338CA; margin-bottom: 6px;">🔥 오늘의 핵심 주목 기업 (KEY WATCHLIST)</div>
+            <div>{badges_html}</div>
+          </div>""")
 
         parts.append("""
-    </div>""")
+        </td>
+      </tr>
+    </table>""")
 
     # ── 3. 4대 카테고리별 글로벌 주요 경제 지표 요약 카드 ──
     if indicators:
-        parts.append(_render_indicator_cards(indicators))
+        parts.append(_render_indicator_cards(indicators, for_local_viewer=for_local_viewer))
 
     # ── 4. 카테고리별 섹션 ──
-    for sec in sections:
+    parts.append("""
+    <!-- 뉴스 본문 섹션 컨테이너 -->
+    <div id="briefing-news-sections-container">""")
+
+    for sec_idx, sec in enumerate(sections):
         category = sec.get("category", "기타")
         items = sec.get("items", [])
         if not items:
@@ -1129,61 +1395,93 @@ def format_briefing_to_html(briefing_data, indicators=None, has_image=False):
         parts.append(f"""
     <!-- 섹션: {category} -->
     <div style="margin-bottom: 28px;">
-      <div style="display: inline-block; background-color: {badge_color}; color: #FFFFFF; font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 4px; margin-bottom: 14px; letter-spacing: 0.5px;">{badge_icon} {category}</div>""")
+      <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin-bottom: 12px;">
+        <tr>
+          <td style="background-color: {badge_color}; color: #FFFFFF; font-size: 12px; font-weight: 700; padding: 5px 14px; border-radius: 4px; letter-spacing: 0.5px;">
+            {badge_icon} {category}
+          </td>
+        </tr>
+      </table>""")
 
-        for item in items:
+        for item_idx, item in enumerate(items):
             headline = item.get("headline", "")
             summary = (item.get("summary", "") or "").replace("\n", "<br>")
             impact = item.get("impact", "")
             related_companies = item.get("related_companies", [])
             source_url = item.get("source_url", "")
             source_name = item.get("source_name", "")
+            card_id = f"news-card-{sec_idx}-{item_idx}"
+            news_copy_btn = f"""<button class="no-copy" onclick="copyNewsCard('{card_id}')" style="cursor: pointer; background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; white-space: nowrap; transition: all 0.2s;">📋 기사 복사</button>""" if for_local_viewer else ""
 
             parts.append(f"""
-      <div style="margin-bottom: 16px; padding: 16px 18px; background-color: #F8FAFC; border-radius: 8px; border-left: 3px solid {badge_color}; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
-        <div style="font-size: 15px; font-weight: 700; color: #1E293B; margin-bottom: 8px; line-height: 1.4;">{headline}</div>
-        <div style="font-size: 14px; color: #475569; line-height: 1.7; margin-bottom: 10px;">{summary}</div>""")
+      <!-- 뉴스 카드 박스 (네이버 블로그 표 컴포넌트 호환) -->
+      <table id="{card_id}" role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin-bottom: 16px;">
+        <tr>
+          <td style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-left: 4px solid {badge_color}; border-radius: 8px; padding: 18px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; gap: 10px;">
+              <div style="font-size: 15px; font-weight: 700; color: #1E293B; line-height: 1.4; flex: 1;">{headline}</div>
+              {news_copy_btn}
+            </div>
+            <div style="font-size: 14px; color: #475569; line-height: 1.7; margin-bottom: 10px;">{summary}</div>""")
 
             # 심층 인사이트 박스
             if impact:
                 parts.append(f"""
-        <div style="margin: 10px 0; padding: 10px 12px; background-color: #F0FDF4; border-radius: 6px; border-left: 3px solid #10B981;">
-          <div style="font-size: 11px; font-weight: 700; color: #047857; margin-bottom: 4px; letter-spacing: 0.3px;">💡 심층 인사이트 & 시사점 (Why It Matters)</div>
-          <div style="font-size: 13px; color: #065F46; line-height: 1.6; font-weight: 500;">{impact}</div>
-        </div>""")
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin: 12px 0;">
+              <tr>
+                <td style="background-color: #F0FDF4; border: 1px solid #DCFCE7; border-left: 4px solid #10B981; border-radius: 6px; padding: 12px 14px;">
+                  <div style="font-size: 11px; font-weight: 700; color: #047857; margin-bottom: 4px; letter-spacing: 0.3px;">💡 심층 인사이트 & 시사점 (Why It Matters)</div>
+                  <div style="font-size: 13px; color: #065F46; line-height: 1.6; font-weight: 500;">{impact}</div>
+                </td>
+              </tr>
+            </table>""")
 
             # 관련 기업 & 밸류체인 분석
             if related_companies:
                 parts.append("""
-        <div style="margin: 10px 0; padding: 10px 12px; background-color: #F1F5F9; border-radius: 6px; border: 1px solid #E2E8F0;">
-          <div style="font-size: 11px; font-weight: 700; color: #2563EB; margin-bottom: 6px; letter-spacing: 0.3px;">🏢 관련 기업 & 밸류체인 분석</div>""")
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin: 12px 0;">
+              <tr>
+                <td style="background-color: #F1F5F9; border: 1px solid #E2E8F0; border-left: 4px solid #3B82F6; border-radius: 6px; padding: 12px 14px;">
+                  <div style="font-size: 11px; font-weight: 700; color: #2563EB; margin-bottom: 6px; letter-spacing: 0.3px;">🏢 관련 기업 & 밸류체인 분석</div>""")
                 for comp in related_companies:
-                    cname = comp.get("name") if isinstance(comp, dict) else getattr(comp, "name", "")
-                    cticker = comp.get("ticker") if isinstance(comp, dict) else getattr(comp, "ticker", "")
-                    crelevance = comp.get("relevance") if isinstance(comp, dict) else getattr(comp, "relevance", "")
+                    if isinstance(comp, dict):
+                        cname = comp.get("name", "")
+                        cticker = comp.get("ticker", "")
+                        crelevance = comp.get("relevance", "")
+                    elif isinstance(comp, str):
+                        cname = comp
+                        cticker = ""
+                        crelevance = ""
+                    else:
+                        cname = getattr(comp, "name", str(comp))
+                        cticker = getattr(comp, "ticker", "")
+                        crelevance = getattr(comp, "relevance", "")
                     ticker_label = f" ({cticker})" if cticker else ""
+                    relevance_span = f"<span>{crelevance}</span>" if crelevance else ""
                     if cname:
                         parts.append(f"""
-          <div style="font-size: 12px; color: #334155; line-height: 1.5; margin-bottom: 5px;">
-            <span style="display: inline-block; background: #EEF2FF; color: #4338CA; font-weight: 700; padding: 2px 7px; border-radius: 4px; font-size: 11px; margin-right: 6px;">{cname}{ticker_label}</span>
-            <span>{crelevance}</span>
-          </div>""")
+                  <div style="font-size: 12px; color: #334155; line-height: 1.5; margin-bottom: 5px;">
+                    <span style="display: inline-block; background: #EEF2FF; color: #4338CA; font-weight: 700; padding: 2px 7px; border-radius: 4px; font-size: 11px; margin-right: 6px;">{cname}{ticker_label}</span>
+                    {relevance_span}
+                  </div>""")
                 parts.append("""
-        </div>""")
+                </td>
+              </tr>
+            </table>""")
 
             if source_url and is_valid_article_url(source_url):
                 source_label = f" ({source_name})" if source_name else ""
                 parts.append(f"""
-        <div style="margin-top: 8px;">
-          <a href="{source_url}" target="_blank" style="font-size: 12px; color: #6366F1; text-decoration: none; font-weight: 500;">관련 기사 보기{source_label} →</a>
-        </div>""")
+            <div style="margin-top: 8px;">
+              <a href="{source_url}" target="_blank" style="font-size: 12px; color: #6366F1; text-decoration: none; font-weight: 500;">관련 기사 보기{source_label} →</a>
+            </div>""")
 
             # 연관 기사 렌더링
             related_articles = item.get("related_articles", [])
             if related_articles:
                 parts.append(f"""
-        <div style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed #E2E8F0;">
-          <div style="font-size: 11px; color: #64748B; font-weight: 600; margin-bottom: 4px;">🔗 연관 기사</div>""")
+            <div style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed #E2E8F0;">
+              <div style="font-size: 11px; color: #64748B; font-weight: 600; margin-bottom: 4px;">🔗 연관 기사</div>""")
                 for rel_art in related_articles:
                     rel_title = rel_art.get("title", "")
                     rel_url = rel_art.get("link", "")
@@ -1191,16 +1489,21 @@ def format_briefing_to_html(briefing_data, indicators=None, has_image=False):
                     rel_src_label = f" ({rel_src})" if rel_src else ""
                     if rel_url and is_valid_article_url(rel_url):
                         parts.append(f"""
-          <div style="margin-bottom: 3px; font-size: 11px;">
-            <a href="{rel_url}" target="_blank" style="color: #475569; text-decoration: none; font-weight: 400;">• {rel_title}{rel_src_label} →</a>
-          </div>""")
+              <div style="margin-bottom: 3px; font-size: 11px;">
+                <a href="{rel_url}" target="_blank" style="color: #475569; text-decoration: none; font-weight: 400;">• {rel_title}{rel_src_label} →</a>
+              </div>""")
                 parts.append("""
-        </div>""")
+            </div>""")
 
             parts.append("""
-      </div>""")
+          </td>
+        </tr>
+      </table>""")
 
         parts.append("""
+    </div>""")
+
+    parts.append("""
     </div>""")
 
     # ── 5. 마무리 코멘트 ──
@@ -1222,17 +1525,23 @@ def format_briefing_to_html(briefing_data, indicators=None, has_image=False):
     <p style="font-size: 11px; color: #94A3B8; margin: 0; line-height: 1.5;">Daily Strategic Intelligence Agent · Powered by Gemini AI<br>{today_str} ({today_weekday}) 자동 생성</p>
   </div>
 
-</div>
+</div>""")
+
+    if for_local_viewer and script_html:
+        parts.append(script_html)
+
+    parts.append("""
 </body>
 </html>""")
 
     return "\n".join(parts)
 
 
-def send_email(title, html_body, image_bytes=None):
+def send_email(title, html_body, image_bytes=None, attachment_html=None):
     """
     SMTP 서버를 통해 개인 수신 이메일로 뉴스레터 브리핑을 발송합니다.
     일일 요약 이미지가 제공된 경우 MIME multipart/related 인라인 첨부(Content-ID: <summary_image>)로 결합합니다.
+    attachment_html이 제공된 경우 해당 문서를 파일 첨부로 동봉합니다.
     """
     smtp_server = _clean_env_val(os.environ.get("SMTP_SERVER")) or "smtp.gmail.com"
     try:
@@ -1282,14 +1591,14 @@ def send_email(title, html_body, image_bytes=None):
 
     # ── 전체 브리핑 원고 HTML 문서(.html) 첨부파일 동봉 ──
     try:
-        attachment_html = html_body
-        if image_bytes:
+        final_attach_html = attachment_html if attachment_html else html_body
+        if image_bytes and 'cid:summary_image' in final_attach_html:
             import base64
             b64_img = base64.b64encode(image_bytes).decode('utf-8')
             data_uri = f"data:image/jpeg;base64,{b64_img}"
-            attachment_html = attachment_html.replace('cid:summary_image', data_uri)
+            final_attach_html = final_attach_html.replace('cid:summary_image', data_uri)
             
-        html_attachment = MIMEText(attachment_html, "html", "utf-8")
+        html_attachment = MIMEText(final_attach_html, "html", "utf-8")
         html_filename = f"DailyBriefing_{today_str}.html"
         html_attachment.add_header("Content-Disposition", "attachment", filename=html_filename)
         msg_root.attach(html_attachment)
@@ -1773,9 +2082,29 @@ def main():
         if send_discord_message(discord_webhook, discord_body):
             sent_list.append("Discord")
             
-    # 이메일 발송 (최상단 요약 이미지 + 1문장 핵심 요약 + 경제 지표 + 6대 섹션)
-    html_body = format_briefing_to_html(briefing, indicators, has_image=(image_bytes is not None))
-    if send_email(title, html_body, image_bytes=image_bytes):
+    # 이메일 발송용 HTML (순수 표준 이메일 규격, 스크립트 없음 -> 스팸 방지)
+    html_body = format_briefing_to_html(briefing, indicators, has_image=(image_bytes is not None), for_local_viewer=False)
+
+    # 네이버 블로그 포스팅용 로컬 뷰어 HTML (원클릭 카드 이미지 복사 툴바 & 캡처 엔진 탑재)
+    local_viewer_html = format_briefing_to_html(briefing, indicators, has_image=(image_bytes is not None), for_local_viewer=True)
+    if image_bytes:
+        import base64
+        b64_img = base64.b64encode(image_bytes).decode('utf-8')
+        data_uri = f"data:image/jpeg;base64,{b64_img}"
+        local_viewer_html = local_viewer_html.replace('cid:summary_image', data_uri)
+
+    # 로컬 작업 디렉토리에 DailyBriefing_latest.html 자동 저장
+    local_html_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "DailyBriefing_latest.html")
+    try:
+        with open(local_html_path, "w", encoding="utf-8") as f:
+            f.write(local_viewer_html)
+        logger.info(f"📄 [네이버 블로그 복사용 뷰어] 최신 HTML 파일 저장 완료: {local_html_path}")
+        logger.info("👉 [네이버 블로그 팁] 브라우저로 DailyBriefing_latest.html을 열어 상단 '총평 카드 복사' / '경제 지표 복사'를 누르면 원본 카드 이미지가 즉시 복사됩니다!")
+    except Exception as e:
+        logger.warning(f"로컬 뷰어 HTML 저장 실패: {e}")
+
+    # 이메일 발송 (이메일 본문은 순수 html_body, 첨부파일은 원클릭 복사가 탑재된 local_viewer_html 동봉)
+    if send_email(title, html_body, image_bytes=image_bytes, attachment_html=local_viewer_html):
         sent_list.append("Email")
 
     if sent_list:

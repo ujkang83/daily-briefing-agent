@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>2026년 9월 13일 글로벌 경제·산업 인텔리전스 브리핑</title></head>
+<body style="margin: 0; padding: 0; background-color: #F1F5F9; font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+
+<!-- ===== 네이버 블로그 포스팅 원클릭 복사 도우미 툴바 ===== -->
+<div id="naver-blog-toolbar" style="position: sticky; top: 0; z-index: 10000; background: #0F172A; color: #FFFFFF; padding: 12px 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); border-bottom: 2px solid #6366F1; font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', Arial, sans-serif;">
+  <div style="max-width: 720px; margin: 0 auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;">
+    <div>
+      <div style="font-size: 14px; font-weight: 800; color: #38BDF8; display: flex; align-items: center; gap: 6px;">
+        <span>📋 네이버 블로그 포스팅 원클릭 복사 도우미</span>
+      </div>
+      <div style="font-size: 11px; color: #94A3B8; margin-top: 2px;">
+        상단 버튼 또는 각 카드 우측 복사 버튼을 누르면 클립보드에 자동 복사됩니다! 블로그 에디터에서 [Ctrl + V] 하세요.
+      </div>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+      <button onclick="copyAllContent()" style="background: linear-gradient(135deg, #2563EB, #1D4ED8); color: #FFFFFF; border: none; padding: 8px 14px; border-radius: 6px; font-size: 12px; font-weight: 800; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 8px rgba(37,99,235,0.4);">
+        📋 전체 복사 (텍스트/표 1회 붙여넣기)
+      </button>
+      <button onclick="copyCardAsImage('briefing-core-summary-card', '총평 요약 카드')" style="background: linear-gradient(135deg, #6366F1, #4F46E5); color: #FFFFFF; border: none; padding: 8px 13px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 6px rgba(99,102,241,0.4);">
+        📸 총평 카드 (이미지)
+      </button>
+      <button onclick="copyCardAsImage('briefing-economic-indicators-card', '경제 지표 요약')" style="background: linear-gradient(135deg, #059669, #047857); color: #FFFFFF; border: none; padding: 8px 13px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 6px rgba(5,150,105,0.4);">
+        📊 경제 지표 (이미지)
+      </button>
+      <button onclick="copyNewsText()" style="background: #334155; color: #F1F5F9; border: 1px solid #475569; padding: 8px 12px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.2s;">
+        📝 뉴스 본문만 복사
+      </button>
+      <button onclick="downloadAllCards()" style="background: #1E293B; color: #94A3B8; border: 1px solid #334155; padding: 8px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer;" title="클립보드 대신 이미지 파일로 다운로드">
+        💾 이미지 저장
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- 토스트 알림창 -->
+<div id="copy-toast" style="display: none; position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #10B981; color: #FFFFFF; padding: 12px 24px; border-radius: 30px; font-size: 13px; font-weight: 700; box-shadow: 0 6px 20px rgba(0,0,0,0.3); z-index: 10001; text-align: center; transition: opacity 0.3s ease;">
+</div>
+
+
+<!-- 외부 컨테이너 -->
+<div id="briefing-root-container" style="max-width: 660px; margin: 20px auto; background-color: #FFFFFF; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.08); overflow: hidden;">
+
+  <!-- ===== 헤더 ===== -->
+  <div style="background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%); padding: 32px 24px; text-align: center;">
+    <div style="display: inline-block; background-color: rgba(99, 102, 241, 0.25); color: #C7D2FE; font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 20px; margin-bottom: 10px; letter-spacing: 0.5px; border: 1px solid rgba(165, 180, 252, 0.3);">EXECUTIVE STRATEGIC INTELLIGENCE</div>
+    <h1 style="color: #FFFFFF; font-size: 21px; margin: 0 0 10px 0; font-weight: 700; line-height: 1.4;">📢 2026년 9월 13일 글로벌 경제·산업 인텔리전스 브리핑</h1>
+    <span style="display: inline-block; color: #94A3B8; font-size: 13px; letter-spacing: 0.3px;">2026년 09월 13일 (일)</span>
+  </div>
+
+  <!-- ===== 본문 영역 ===== -->
+  <div id="briefing-content-body" style="padding: 24px 20px;">
+
+    <!-- 전략적 인텔리전스 총평 카드 (네이버 블로그 표 컴포넌트 호환) -->
+    <table id="briefing-core-summary-card" role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin-bottom: 26px;">
+      <tr>
+        <td style="padding: 20px 22px; background-color: #EEF2FF; background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%); border: 1px solid #C7D2FE; border-left: 5px solid #6366F1; border-radius: 12px; box-shadow: 0 2px 8px rgba(99, 102, 241, 0.08);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <div style="font-size: 12px; font-weight: 700; color: #4F46E5; letter-spacing: 0.5px;">🎯 오늘의 핵심 브리핑 총평 (CORE THESIS)</div>
+            <button class="no-copy" onclick="copyCardAsImage('briefing-core-summary-card', '총평 요약 카드')" style="cursor: pointer; background: #4F46E5; color: #FFFFFF; border: none; padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 700; box-shadow: 0 2px 5px rgba(79,70,229,0.3); transition: all 0.2s;">📸 총평 카드 복사</button>
+          </div>
+          <div style="font-size: 15px; font-weight: 700; color: #1E293B; line-height: 1.6; margin-bottom: 14px;">글로벌 통화정책 슈퍼위크를 앞두고 지정학적 리스크 및 AI 대규모 투자에 대한 자금조달 비용 상승 경고등이 켜지면서 기술주 중심의 자금 재배치와 실적 기반 자산으로의 이동이 심화되고 있습니다.</div>
+
+          <div style="padding-top: 12px; border-top: 1px solid rgba(99, 102, 241, 0.2);">
+            <div style="font-size: 12px; font-weight: 700; color: #4338CA; margin-bottom: 8px;">💡 오늘의 3대 전략적 관전 포인트 (KEY STRATEGIC INSIGHTS)</div>
+
+            <div style="font-size: 13px; color: #334155; line-height: 1.5; margin-bottom: 6px;">
+              <span style="font-weight: 700; color: #6366F1;">⚡ [1]</span> AI 인프라 자금조달 한계 도달: 오라클 회사채 금리가 8%에 육박하는 등 빅테크의 AI 투자 리파이낸싱 비용이 대폭 상승하면서 AI 테마주에서 실질적 cash flow를 창출하는 비기술 실적주로 자금이 분산되고 있습니다.
+            </div>
+
+            <div style="font-size: 13px; color: #334155; line-height: 1.5; margin-bottom: 6px;">
+              <span style="font-weight: 700; color: #6366F1;">⚡ [2]</span> 통화정책 패러다임 축 이동 및 금융 변동성: 미 연준과 한국은행의 금리 방향성을 둘러싼 긴장감이 커지며 단기 파킹형 ETF로의 대규모 자금 유입 등 안전 자산 선호가 확산되고 있습니다.
+            </div>
+
+            <div style="font-size: 13px; color: #334155; line-height: 1.5; margin-bottom: 6px;">
+              <span style="font-weight: 700; color: #6366F1;">⚡ [3]</span> 빅테크 하드웨어 파이프라인 개편: AR 글래스 및 에이전트 인프라 등 차세대 실감형 디바이스와 소프트웨어 오케스트레이션 분야로 밸류체인 전환이 가속화되고 있습니다.
+            </div>
+
+          </div>
+
+          <div style="margin-top: 12px; padding-top: 10px; border-top: 1px dashed rgba(99, 102, 241, 0.2);">
+            <div style="font-size: 11px; font-weight: 700; color: #4338CA; margin-bottom: 6px;">🔥 오늘의 핵심 주목 기업 (KEY WATCHLIST)</div>
+            <div><span style="display: inline-block; background-color: #FFFFFF; color: #312E81; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 6px; margin: 3px 4px 3px 0; border: 1px solid #C7D2FE; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">오라클</span> <span style="display: inline-block; background-color: #FFFFFF; color: #312E81; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 6px; margin: 3px 4px 3px 0; border: 1px solid #C7D2FE; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">삼성전자</span> <span style="display: inline-block; background-color: #FFFFFF; color: #312E81; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 6px; margin: 3px 4px 3px 0; border: 1px solid #C7D2FE; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">SK하이닉스</span> <span style="display: inline-block; background-color: #FFFFFF; color: #312E81; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 6px; margin: 3px 4px 3px 0; border: 1px solid #C7D2FE; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">어도비</span></div>
+          </div>
+
+        </td>
+      </tr>
+    </table>
+
+    <!-- 경제 지표 스마트 요약 카드 섹션 -->
+    <div id="briefing-economic-indicators-card" style="margin-bottom: 28px; background-color: #FFFFFF; border-radius: 12px; padding: 16px 14px; border: 1px solid #E2E8F0; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <div style="display: inline-block; background-color: #059669; color: #FFFFFF; font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 4px; letter-spacing: 0.5px;">📈 글로벌 주요 경제 지표 요약</div>
+        <button class="no-copy" onclick="copyCardAsImage('briefing-economic-indicators-card', '경제 지표 요약 카드')" style="cursor: pointer; background: #059669; color: #FFFFFF; border: none; padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 700; box-shadow: 0 2px 5px rgba(5,150,105,0.3); transition: all 0.2s;">📸 지표 카드 복사</button>
+      </div>
+    
+
+      <!-- 카테고리: 국내 지표 -->
+      <div style="font-size: 12px; font-weight: 700; color: #475569; margin: 12px 0 8px 2px;">🇰🇷 국내 지표</div>
+      <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; border-spacing: 6px; margin-bottom: 6px;">
+        
+        <tr>
+
+          <td style="width: 50%; vertical-align: top; background-color: #F8FAFC; border: 1px solid #E2E8F0; border-left: 4px solid #2563EB; border-radius: 8px; padding: 10px 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
+            <div style="font-size: 11px; font-weight: 600; color: #64748B; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">코스피 (KOSPI)</div>
+            <div style="font-size: 15px; font-weight: 800; color: #0F172A; margin-bottom: 4px; line-height: 1.2;">
+              6,909.91 <span style="font-size: 11px; font-weight: 500; color: #64748B;">pt</span>
+            </div>
+            <div style="display: inline-block; background-color: #DBEAFE; color: #2563EB; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px; line-height: 1.2;">
+              ▼ 124.01 (-1.76%)
+            </div>
+          </td>
+
+          <td style="width: 50%; vertical-align: top; background-color: #F8FAFC; border: 1px solid #E2E8F0; border-left: 4px solid #2563EB; border-radius: 8px; padding: 10px 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
+            <div style="font-size: 11px; font-weight: 600; color: #64748B; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">코스닥 (KOSDAQ)</div>
+            <div style="font-size: 15px; font-weight: 800; color: #0F172A; margin-bottom: 4px; line-height: 1.2;">
+              820.64 <span style="font-size: 11px; font-weight: 500; color: #64748B;">pt</span>
+            </div>
+            <div style="display: inline-block; background-color: #DBEAFE; color: #2563EB; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px; line-height: 1.2;">
+              ▼ 16.28 (-1.95%)
+            </div>
+          </td>
+        </tr>
+        <tr>
+
+          <td style="width: 50%; vertical-align: top; background-color: #F8FAFC; border: 1px solid #E2E8F0; border-left: 4px solid #2563EB; border-radius: 8px; padding: 10px 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
+            <div style="font-size: 11px; font-weight: 600; color: #64748B; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">삼성전자 (시총 1위)</div>
+            <div style="font-size: 15px; font-weight: 800; color: #0F172A; margin-bottom: 4px; line-height: 1.2;">
+              259,500.00 <span style="font-size: 11px; font-weight: 500; color: #64748B;">원</span>
+            </div>
+            <div style="display: inline-block; background-color: #DBEAFE; color: #2563EB; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px; line-height: 1.2;">
+              ▼ 9,500.00 (-3.53%)
+            </div>
+          </td>
+
+          <td style="width: 50%; vertical-align: top; background-color: #F8FAFC; border: 1px solid #E2E8F0; border-left: 4px solid #2563EB; border-radius: 8px; padding: 10px 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
+            <div style="font-size: 11px; font-weight: 600; color: #64748B; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">SK하이닉스 (시총 2위)</div>
+            <div style="font-size: 15px; font-weight: 800; color: #0F172A; margin-bottom: 4px; line-height: 1.2;">
+              1,812,000.00 <span style="font-size: 11px; font-weight: 500; color: #64748B;">원</span>
+            </div>
+            <div style="display: inline-block; background-color: #DBEAFE; color: #2563EB; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px; line-height: 1.2;">
+              ▼ 41,000.00 (-2.21%)
+            </div>
+          </td>
+        </tr>
+      </table>
+
+      <!-- 카테고리: 해외 지표 -->
+      <div style="font-size: 12px; font-weight: 700; color: #475569; margin: 12px 0 8px 2px;">🌐 해외 지표</div>
+      <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; border-spacing: 6px; margin-bottom: 6px;">
+        
+        <tr>
+
+          <td style="width: 50%; vertical-align: top; background-color: #F8FAFC; border: 1px solid #E2E8F0; border-left: 4px solid #DC2626; border-radius: 8px; padding: 10px 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
+            <div style="font-size: 11px; font-weight: 600; color: #64748B; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">나스닥 (NASDAQ)</div>
+            <div style="font-size: 15px; font-weight: 800; color: #0F172A; margin-bottom: 4px; line-height: 1.2;">
+              26,333.03 <span style="font-size: 11px; font-weight: 500; color: #64748B;">pt</span>
+            </div>
+            <div style="display: inline-block; background-color: #FEE2E2; color: #DC2626; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px; line-height: 1.2;">
+              ▲ 251.31 (+0.96%)
+            </div>
+          </td>
+
+          <td style="width: 50%; vertical-align: top; background-color: #F8FAFC; border: 1px solid #E2E8F0; border-left: 4px solid #DC2626; border-radius: 8px; padding: 10px 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
+            <div style="font-size: 11px; font-weight: 600; color: #64748B; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">다우존스 (DOW)</div>
+            <div style="font-size: 15px; font-weight: 800; color: #0F172A; margin-bottom: 4px; line-height: 1.2;">
+              52,573.29 <span style="font-size: 11px; font-weight: 500; color: #64748B;">pt</span>
+            </div>
+            <div style="display: inline-block; background-color: #FEE2E2; color: #DC2626; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px; line-height: 1.2;">
+              ▲ 509.19 (+0.98%)
+            </div>
+          </td>
+        </tr>
+      </table>
+
+      <!-- 카테고리: 환율 -->
+      <div style="font-size: 12px; font-weight: 700; color: #475569; margin: 12px 0 8px 2px;">💱 환율</div>
+      <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; border-spacing: 6px; margin-bottom: 6px;">
+        
+        <tr>
+
+          <td style="width: 50%; vertical-align: top; background-color: #F8FAFC; border: 1px solid #E2E8F0; border-left: 4px solid #2563EB; border-radius: 8px; padding: 10px 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
+            <div style="font-size: 11px; font-weight: 600; color: #64748B; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">원/달러 환율</div>
+            <div style="font-size: 15px; font-weight: 800; color: #0F172A; margin-bottom: 4px; line-height: 1.2;">
+              1,341.05 <span style="font-size: 11px; font-weight: 500; color: #64748B;">원</span>
+            </div>
+            <div style="display: inline-block; background-color: #DBEAFE; color: #2563EB; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px; line-height: 1.2;">
+              ▼ 8.10 (-0.60%)
+            </div>
+          </td>
+
+          <td style="width: 50%; vertical-align: top; background-color: #F8FAFC; border: 1px solid #E2E8F0; border-left: 4px solid #2563EB; border-radius: 8px; padding: 10px 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
+            <div style="font-size: 11px; font-weight: 600; color: #64748B; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">원/유로 환율</div>
+            <div style="font-size: 15px; font-weight: 800; color: #0F172A; margin-bottom: 4px; line-height: 1.2;">
+              1,554.80 <span style="font-size: 11px; font-weight: 500; color: #64748B;">원</span>
+            </div>
+            <div style="display: inline-block; background-color: #DBEAFE; color: #2563EB; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px; line-height: 1.2;">
+              ▼ 10.90 (-0.70%)
+            </div>
+          </td>
+        </tr>
+        <tr>
+
+          <td style="width: 50%; vertical-align: top; background-color: #F8FAFC; border: 1px solid #E2E8F0; border-left: 4px solid #2563EB; border-radius: 8px; padding: 10px 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
+            <div style="font-size: 11px; font-weight: 600; color: #64748B; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">원/엔 환율 (100엔)</div>
+            <div style="font-size: 15px; font-weight: 800; color: #0F172A; margin-bottom: 4px; line-height: 1.2;">
+              871.00 <span style="font-size: 11px; font-weight: 500; color: #64748B;">원</span>
+            </div>
+            <div style="display: inline-block; background-color: #DBEAFE; color: #2563EB; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px; line-height: 1.2;">
+              ▼ 0.60 (-0.07%)
+            </div>
+          </td>
+
+          <td style="width: 50%; vertical-align: top; padding: 0; border: none; background: transparent;"></td>
+        </tr>
+      </table>
+
+      <!-- 카테고리: 유가 -->
+      <div style="font-size: 12px; font-weight: 700; color: #475569; margin: 12px 0 8px 2px;">🛢️ 유가</div>
+      <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; border-spacing: 6px; margin-bottom: 6px;">
+        
+        <tr>
+
+          <td style="width: 50%; vertical-align: top; background-color: #F8FAFC; border: 1px solid #E2E8F0; border-left: 4px solid #2563EB; border-radius: 8px; padding: 10px 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
+            <div style="font-size: 11px; font-weight: 600; color: #64748B; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">WTI 원유</div>
+            <div style="font-size: 15px; font-weight: 800; color: #0F172A; margin-bottom: 4px; line-height: 1.2;">
+              100.05 <span style="font-size: 11px; font-weight: 500; color: #64748B;">$</span>
+            </div>
+            <div style="display: inline-block; background-color: #DBEAFE; color: #2563EB; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px; line-height: 1.2;">
+              ▼ 2.43 (-2.37%)
+            </div>
+          </td>
+
+          <td style="width: 50%; vertical-align: top; padding: 0; border: none; background: transparent;"></td>
+        </tr>
+      </table>
+
+    </div>
+    <hr style="border: 0; border-top: 1px solid #E2E8F0; margin: 4px 0 24px 0;">
+
+    <!-- 뉴스 본문 섹션 컨테이너 -->
+    <div id="briefing-news-sections-container">
+
+    <!-- 섹션: 거시 경제 & 주요 지표 -->
+    <div style="margin-bottom: 28px;">
+      <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin-bottom: 12px;">
+        <tr>
+          <td style="background-color: #059669; color: #FFFFFF; font-size: 12px; font-weight: 700; padding: 5px 14px; border-radius: 4px; letter-spacing: 0.5px;">
+            📊 거시 경제 & 주요 지표
+          </td>
+        </tr>
+      </table>
+
+      <!-- 뉴스 카드 박스 (네이버 블로그 표 컴포넌트 호환) -->
+      <table id="news-card-0-0" role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin-bottom: 16px;">
+        <tr>
+          <td style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-left: 4px solid #059669; border-radius: 8px; padding: 18px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; gap: 10px;">
+              <div style="font-size: 15px; font-weight: 700; color: #1E293B; line-height: 1.4; flex: 1;">글로벌 주요 금융 지표 동향 (2026년 9월 13일)</div>
+              <button class="no-copy" onclick="copyNewsCard('news-card-0-0')" style="cursor: pointer; background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; white-space: nowrap; transition: all 0.2s;">📋 기사 복사</button>
+            </div>
+            <div style="font-size: 14px; color: #475569; line-height: 1.7; margin-bottom: 10px;">국내 증시는 외국인 매도세 확대로 코스피와 코스닥 모두 약세를 보인 반면, 뉴욕증시는 유가 진정세에 힘입어 반등에 성공했습니다.</div>
+
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin: 12px 0;">
+              <tr>
+                <td style="background-color: #F0FDF4; border: 1px solid #DCFCE7; border-left: 4px solid #10B981; border-radius: 6px; padding: 12px 14px;">
+                  <div style="font-size: 11px; font-weight: 700; color: #047857; margin-bottom: 4px; letter-spacing: 0.3px;">💡 심층 인사이트 & 시사점 (Why It Matters)</div>
+                  <div style="font-size: 13px; color: #065F46; line-height: 1.6; font-weight: 500;">원/달러 환율 안정에도 불구하고 메모리 반도체 및 대형 IT주 위주로 국내 증시의 변동성이 지속되고 있으며, 유가 안정세 여부가 향후 증시의 핵심 지지선이 될 전망입니다.</div>
+                </td>
+              </tr>
+            </table>
+
+          </td>
+        </tr>
+      </table>
+
+      <!-- 뉴스 카드 박스 (네이버 블로그 표 컴포넌트 호환) -->
+      <table id="news-card-0-1" role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin-bottom: 16px;">
+        <tr>
+          <td style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-left: 4px solid #059669; border-radius: 8px; padding: 18px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; gap: 10px;">
+              <div style="font-size: 15px; font-weight: 700; color: #1E293B; line-height: 1.4; flex: 1;">오라클 회사채 금리 8% 진입… AI 캡엑스 자금조달 비용 급증</div>
+              <button class="no-copy" onclick="copyNewsCard('news-card-0-1')" style="cursor: pointer; background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; white-space: nowrap; transition: all 0.2s;">📋 기사 복사</button>
+            </div>
+            <div style="font-size: 14px; color: #475569; line-height: 1.7; margin-bottom: 10px;">오라클의 회사채 발행 금리가 8% 수준에 육박하며 AI 대규모 설비투자를 위한 빅테크의 자금조달 환경에 경고등이 켜졌습니다.</div>
+
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin: 12px 0;">
+              <tr>
+                <td style="background-color: #F0FDF4; border: 1px solid #DCFCE7; border-left: 4px solid #10B981; border-radius: 6px; padding: 12px 14px;">
+                  <div style="font-size: 11px; font-weight: 700; color: #047857; margin-bottom: 4px; letter-spacing: 0.3px;">💡 심층 인사이트 & 시사점 (Why It Matters)</div>
+                  <div style="font-size: 13px; color: #065F46; line-height: 1.6; font-weight: 500;">고금리 장기화 기조 속에서 무리한 AI 캡엑스(CapEx) 집행은 기업의 재무건전성을 악화시킬 수 있으며, 채권 시장의 자율적 브레이크가 빅테크의 투자 속도를 조정하는 기점으로 작용할 것입니다.</div>
+                </td>
+              </tr>
+            </table>
+
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin: 12px 0;">
+              <tr>
+                <td style="background-color: #F1F5F9; border: 1px solid #E2E8F0; border-left: 4px solid #3B82F6; border-radius: 6px; padding: 12px 14px;">
+                  <div style="font-size: 11px; font-weight: 700; color: #2563EB; margin-bottom: 6px; letter-spacing: 0.3px;">🏢 관련 기업 & 밸류체인 분석</div>
+
+                  <div style="font-size: 12px; color: #334155; line-height: 1.5; margin-bottom: 5px;">
+                    <span style="display: inline-block; background: #EEF2FF; color: #4338CA; font-weight: 700; padding: 2px 7px; border-radius: 4px; font-size: 11px; margin-right: 6px;">오라클 (ORCL)</span>
+                    <span>클라우드 및 AI 인프라 구축을 위해 차입금을 확대한 결과 회사채 발행 금리가 급등하여 재무적 리스크가 증가함</span>
+                  </div>
+
+                </td>
+              </tr>
+            </table>
+
+            <div style="margin-top: 8px;">
+              <a href="https://www.hankyung.com/article/202609119348i" target="_blank" style="font-size: 12px; color: #6366F1; text-decoration: none; font-weight: 500;">관련 기사 보기 (한국경제) →</a>
+            </div>
+
+          </td>
+        </tr>
+      </table>
+
+      <!-- 뉴스 카드 박스 (네이버 블로그 표 컴포넌트 호환) -->
+      <table id="news-card-0-2" role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin-bottom: 16px;">
+        <tr>
+          <td style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-left: 4px solid #059669; border-radius: 8px; padding: 18px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; gap: 10px;">
+              <div style="font-size: 15px; font-weight: 700; color: #1E293B; line-height: 1.4; flex: 1;">미 연준 금리 결정 앞두고 당국 F4 회의 개최… 시장 경계감 최고조</div>
+              <button class="no-copy" onclick="copyNewsCard('news-card-0-2')" style="cursor: pointer; background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; white-space: nowrap; transition: all 0.2s;">📋 기사 복사</button>
+            </div>
+            <div style="font-size: 14px; color: #475569; line-height: 1.7; margin-bottom: 10px;">글로벌 통화정책 결정 주간을 맞아 미 연준의 금리 향방에 대한 긴장감이 고조되자 국내 금융당국이 F4 회의를 개최하고 대응책 마련에 나섰습니다.</div>
+
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin: 12px 0;">
+              <tr>
+                <td style="background-color: #F0FDF4; border: 1px solid #DCFCE7; border-left: 4px solid #10B981; border-radius: 6px; padding: 12px 14px;">
+                  <div style="font-size: 11px; font-weight: 700; color: #047857; margin-bottom: 4px; letter-spacing: 0.3px;">💡 심층 인사이트 & 시사점 (Why It Matters)</div>
+                  <div style="font-size: 13px; color: #065F46; line-height: 1.6; font-weight: 500;">통화정책 불확실성에 따른 자본 유출입 변동성에 대비해 금융당국의 시장 안정화 조치가 강화될 것이며, 외환 및 채권 시장의 단기 변동성이 확대될 가능성이 큽니다.</div>
+                </td>
+              </tr>
+            </table>
+
+            <div style="margin-top: 8px;">
+              <a href="https://v.daum.net/v/20260913055351685" target="_blank" style="font-size: 12px; color: #6366F1; text-decoration: none; font-weight: 500;">관련 기사 보기 (v.daum.net) →</a>
+            </div>
+
+          </td>
+        </tr>
+      </table>
+
+      <!-- 뉴스 카드 박스 (네이버 블로그 표 컴포넌트 호환) -->
+      <table id="news-card-0-3" role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin-bottom: 16px;">
+        <tr>
+          <td style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-left: 4px solid #059669; border-radius: 8px; padding: 18px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; gap: 10px;">
+              <div style="font-size: 15px; font-weight: 700; color: #1E293B; line-height: 1.4; flex: 1;">증시 박스권 갇히자 '파킹형 ETF'로 일주일 새 1.5조 원 대거 유입</div>
+              <button class="no-copy" onclick="copyNewsCard('news-card-0-3')" style="cursor: pointer; background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; white-space: nowrap; transition: all 0.2s;">📋 기사 복사</button>
+            </div>
+            <div style="font-size: 14px; color: #475569; line-height: 1.7; margin-bottom: 10px;">증시 상단이 제한되고 변동성이 확대되면서 금리 연동형 단기 파킹 ETF로 자금이 폭발적으로 유입되고 있습니다.</div>
+
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin: 12px 0;">
+              <tr>
+                <td style="background-color: #F0FDF4; border: 1px solid #DCFCE7; border-left: 4px solid #10B981; border-radius: 6px; padding: 12px 14px;">
+                  <div style="font-size: 11px; font-weight: 700; color: #047857; margin-bottom: 4px; letter-spacing: 0.3px;">💡 심층 인사이트 & 시사점 (Why It Matters)</div>
+                  <div style="font-size: 13px; color: #065F46; line-height: 1.6; font-weight: 500;">위험자산 회피 성향이 강화되면서 단기 대기성 자금이 단기채 및 CD금리 ETF로 쏠리고 있으며, 이는 증시 하단을 지지할 수 있으나 유동성 공급 고갈을 초래할 수 있습니다.</div>
+                </td>
+              </tr>
+            </table>
+
+            <div style="margin-top: 8px;">
+              <a href="https://www.sentv.co.kr/article/view/sentv202609120003" target="_blank" style="font-size: 12px; color: #6366F1; text-decoration: none; font-weight: 500;">관련 기사 보기 (서울경제TV) →</a>
+            </div>
+
+          </td>
+        </tr>
+      </table>
+
+    </div>
+
+    <!-- 섹션: 주요 기업 동향 -->
+    <div style="margin-bottom: 28px;">
+      <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin-bottom: 12px;">
+        <tr>
+          <td style="background-color: #2563EB; color: #FFFFFF; font-size: 12px; font-weight: 700; padding: 5px 14px; border-radius: 4px; letter-spacing: 0.5px;">
+            🏢 주요 기업 동향
+          </td>
+        </tr>
+      </table>
+
+      <!-- 뉴스 카드 박스 (네이버 블로그 표 컴포넌트 호환) -->
+      <table id="news-card-1-0" role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin-bottom: 16px;">
+        <tr>
+          <td style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-left: 4px solid #2563EB; border-radius: 8px; padding: 18px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; gap: 10px;">
+              <div style="font-size: 15px; font-weight: 700; color: #1E293B; line-height: 1.4; flex: 1;">메모리 반도체 패권 재편: 미·중 경쟁 속 4강 구도 재편 가속화</div>
+              <button class="no-copy" onclick="copyNewsCard('news-card-1-0')" style="cursor: pointer; background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; white-space: nowrap; transition: all 0.2s;">📋 기사 복사</button>
+            </div>
+            <div style="font-size: 14px; color: #475569; line-height: 1.7; margin-bottom: 10px;">미국의 기술 패권 견제와 중국의 공격적인 자국 공급망 구축이 교차하며 글로벌 메모리 반도체 산업이 4강 구조로 재편되고 있습니다.</div>
+
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin: 12px 0;">
+              <tr>
+                <td style="background-color: #F0FDF4; border: 1px solid #DCFCE7; border-left: 4px solid #10B981; border-radius: 6px; padding: 12px 14px;">
+                  <div style="font-size: 11px; font-weight: 700; color: #047857; margin-bottom: 4px; letter-spacing: 0.3px;">💡 심층 인사이트 & 시사점 (Why It Matters)</div>
+                  <div style="font-size: 13px; color: #065F46; line-height: 1.6; font-weight: 500;">선단 공정 기술 격차 유지가 핵심 생존 전략으로 부상함에 따라 한국 반도체 기업들의 HBM 및 차세대 메모리 주도권 확보를 위한 전략적 리더십 고도화가 요구됩니다.</div>
+                </td>
+              </tr>
+            </table>
+
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin: 12px 0;">
+              <tr>
+                <td style="background-color: #F1F5F9; border: 1px solid #E2E8F0; border-left: 4px solid #3B82F6; border-radius: 6px; padding: 12px 14px;">
+                  <div style="font-size: 11px; font-weight: 700; color: #2563EB; margin-bottom: 6px; letter-spacing: 0.3px;">🏢 관련 기업 & 밸류체인 분석</div>
+
+                  <div style="font-size: 12px; color: #334155; line-height: 1.5; margin-bottom: 5px;">
+                    <span style="display: inline-block; background: #EEF2FF; color: #4338CA; font-weight: 700; padding: 2px 7px; border-radius: 4px; font-size: 11px; margin-right: 6px;">삼성전자 (005930)</span>
+                    <span>미중 기술 갈등 사이에서 차세대 HBM 공급망 주도권을 확보해야 하는 전략적 요충 기업</span>
+                  </div>
+
+                  <div style="font-size: 12px; color: #334155; line-height: 1.5; margin-bottom: 5px;">
+                    <span style="display: inline-block; background: #EEF2FF; color: #4338CA; font-weight: 700; padding: 2px 7px; border-radius: 4px; font-size: 11px; margin-right: 6px;">SK하이닉스 (000660)</span>
+                    <span>고성능 메모리 반도체 시장 리더십 유지를 위해 기술 고도화 및 판로 다변화를 추진 중</span>
+                  </div>
+
+                </td>
+              </tr>
+            </table>
+
+          </td>
+        </tr>
+      </table>
+
+      <!-- 뉴스 카드 박스 (네이버 블로그 표 컴포넌트 호환) -->
+      <table id="news-card-1-1" role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin-bottom: 16px;">
+        <tr>
+          <td style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-left: 4px solid #2563EB; border-radius: 8px; padding: 18px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; gap: 10px;">
+              <div style="font-size: 15px; font-weight: 700; color: #1E293B; line-height: 1.4; flex: 1;">글로벌 빅테크 AR 안경 개발 가속… 디스플레이 및 실감형 부품주 수혜</div>
+              <button class="no-copy" onclick="copyNewsCard('news-card-1-1')" style="cursor: pointer; background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; white-space: nowrap; transition: all 0.2s;">📋 기사 복사</button>
+            </div>
+            <div style="font-size: 14px; color: #475569; line-height: 1.7; margin-bottom: 10px;">빅테크들이 모바일 이후의 차세대 하드웨어폼팩터로 AR 안경 개발을 본격화하면서 디스플레이 부품 산업에 매수세가 유입되고 있습니다.</div>
+
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin: 12px 0;">
+              <tr>
+                <td style="background-color: #F0FDF4; border: 1px solid #DCFCE7; border-left: 4px solid #10B981; border-radius: 6px; padding: 12px 14px;">
+                  <div style="font-size: 11px; font-weight: 700; color: #047857; margin-bottom: 4px; letter-spacing: 0.3px;">💡 심층 인사이트 & 시사점 (Why It Matters)</div>
+                  <div style="font-size: 13px; color: #065F46; line-height: 1.6; font-weight: 500;">올레도스(OLEDoS) 및 미니 LED 등 초고해상도 디스플레이 부품 생태계의 성장이 가속화되며 핵심 부품사들의 밸류에이션 재평가가 진행될 것입니다.</div>
+                </td>
+              </tr>
+            </table>
+
+          </td>
+        </tr>
+      </table>
+
+      <!-- 뉴스 카드 박스 (네이버 블로그 표 컴포넌트 호환) -->
+      <table id="news-card-1-2" role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin-bottom: 16px;">
+        <tr>
+          <td style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-left: 4px solid #2563EB; border-radius: 8px; padding: 18px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; gap: 10px;">
+              <div style="font-size: 15px; font-weight: 700; color: #1E293B; line-height: 1.4; flex: 1;">어도비, 인포매티카 CEO 출신 차기 수장 낙점… 데이터 중심 AI 전환 도모</div>
+              <button class="no-copy" onclick="copyNewsCard('news-card-1-2')" style="cursor: pointer; background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; white-space: nowrap; transition: all 0.2s;">📋 기사 복사</button>
+            </div>
+            <div style="font-size: 14px; color: #475569; line-height: 1.7; margin-bottom: 10px;">AI 경쟁에서 도전에 직면한 어도비가 데이터 관리 기업 인포매티카 출신 수장을 발탁하며 조직 및 전략적 체질 개선에 나섰습니다.</div>
+
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin: 12px 0;">
+              <tr>
+                <td style="background-color: #F0FDF4; border: 1px solid #DCFCE7; border-left: 4px solid #10B981; border-radius: 6px; padding: 12px 14px;">
+                  <div style="font-size: 11px; font-weight: 700; color: #047857; margin-bottom: 4px; letter-spacing: 0.3px;">💡 심층 인사이트 & 시사점 (Why It Matters)</div>
+                  <div style="font-size: 13px; color: #065F46; line-height: 1.6; font-weight: 500;">단순한 생성형 AI 툴 제공을 넘어 데이터 거버넌스 및 엔터프라이즈 데이터 결합을 통한 AI 플랫폼 기업으로의 구조적 체질 개선이 가속화될 것입니다.</div>
+                </td>
+              </tr>
+            </table>
+
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin: 12px 0;">
+              <tr>
+                <td style="background-color: #F1F5F9; border: 1px solid #E2E8F0; border-left: 4px solid #3B82F6; border-radius: 6px; padding: 12px 14px;">
+                  <div style="font-size: 11px; font-weight: 700; color: #2563EB; margin-bottom: 6px; letter-spacing: 0.3px;">🏢 관련 기업 & 밸류체인 분석</div>
+
+                  <div style="font-size: 12px; color: #334155; line-height: 1.5; margin-bottom: 5px;">
+                    <span style="display: inline-block; background: #EEF2FF; color: #4338CA; font-weight: 700; padding: 2px 7px; border-radius: 4px; font-size: 11px; margin-right: 6px;">어도비 (ADBE)</span>
+                    <span>새로운 리더십을 기반으로 인공지능 인프라와 데이터 솔루션을 결합한 수익 모델 개편 추진</span>
+                  </div>
+
+                </td>
+              </tr>
+            </table>
+
+            <div style="margin-top: 8px;">
+              <a href="https://theguru.co.kr/news/article.html?no=106994" target="_blank" style="font-size: 12px; color: #6366F1; text-decoration: none; font-weight: 500;">관련 기사 보기 (더구루) →</a>
+            </div>
+
+          </td>
+        </tr>
+      </table>
+
+    </div>
+
+    <!-- 섹션: AX · RX · 디지털 트윈 & 로보틱스 -->
+    <div style="margin-bottom: 28px;">
+      <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin-bottom: 12px;">
+        <tr>
+          <td style="background-color: #6366F1; color: #FFFFFF; font-size: 12px; font-weight: 700; padding: 5px 14px; border-radius: 4px; letter-spacing: 0.5px;">
+            🤖 AX · RX · 디지털 트윈 & 로보틱스
+          </td>
+        </tr>
+      </table>
+
+      <!-- 뉴스 카드 박스 (네이버 블로그 표 컴포넌트 호환) -->
+      <table id="news-card-2-0" role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin-bottom: 16px;">
+        <tr>
+          <td style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-left: 4px solid #6366F1; border-radius: 8px; padding: 18px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; gap: 10px;">
+              <div style="font-size: 15px; font-weight: 700; color: #1E293B; line-height: 1.4; flex: 1;">앤트로픽 CEO 'AI 개발 속도조절론' 제기… 안전성 거버넌스 부상</div>
+              <button class="no-copy" onclick="copyNewsCard('news-card-2-0')" style="cursor: pointer; background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; white-space: nowrap; transition: all 0.2s;">📋 기사 복사</button>
+            </div>
+            <div style="font-size: 14px; color: #475569; line-height: 1.7; margin-bottom: 10px;">앤트로픽 CEO가 급격한 AI 모델 고도화에 따른 통제 상실 위험을 경고하며 통제 가능한 개발 속도를 주장했습니다.</div>
+
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin: 12px 0;">
+              <tr>
+                <td style="background-color: #F0FDF4; border: 1px solid #DCFCE7; border-left: 4px solid #10B981; border-radius: 6px; padding: 12px 14px;">
+                  <div style="font-size: 11px; font-weight: 700; color: #047857; margin-bottom: 4px; letter-spacing: 0.3px;">💡 심층 인사이트 & 시사점 (Why It Matters)</div>
+                  <div style="font-size: 13px; color: #065F46; line-height: 1.6; font-weight: 500;">향후 초거대 AI 모델 출시에 대한 규제 및 안전성 검증 절차가 강화되어 모델 개발 비용 증가와 출시 주기 지연으로 이어질 수 있습니다.</div>
+                </td>
+              </tr>
+            </table>
+
+            <div style="margin-top: 8px;">
+              <a href="https://www.yna.co.kr/amp/view/AKR20260913001400072" target="_blank" style="font-size: 12px; color: #6366F1; text-decoration: none; font-weight: 500;">관련 기사 보기 (연합뉴스) →</a>
+            </div>
+
+          </td>
+        </tr>
+      </table>
+
+      <!-- 뉴스 카드 박스 (네이버 블로그 표 컴포넌트 호환) -->
+      <table id="news-card-2-1" role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin-bottom: 16px;">
+        <tr>
+          <td style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-left: 4px solid #6366F1; border-radius: 8px; padding: 18px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; gap: 10px;">
+              <div style="font-size: 15px; font-weight: 700; color: #1E293B; line-height: 1.4; flex: 1;">AI 거품론 피로감에 '본업 혁신' 비기술 실적주 부상</div>
+              <button class="no-copy" onclick="copyNewsCard('news-card-2-1')" style="cursor: pointer; background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; white-space: nowrap; transition: all 0.2s;">📋 기사 복사</button>
+            </div>
+            <div style="font-size: 14px; color: #475569; line-height: 1.7; margin-bottom: 10px;">AI 테마의 수익성 의문이 증대되면서 순수 AI 기업 대신 전통 본업에 AI 기술을 접목해 실적을 가시화하는 비기술 기업들이 가치를 인정받고 있습니다.</div>
+
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin: 12px 0;">
+              <tr>
+                <td style="background-color: #F0FDF4; border: 1px solid #DCFCE7; border-left: 4px solid #10B981; border-radius: 6px; padding: 12px 14px;">
+                  <div style="font-size: 11px; font-weight: 700; color: #047857; margin-bottom: 4px; letter-spacing: 0.3px;">💡 심층 인사이트 & 시사점 (Why It Matters)</div>
+                  <div style="font-size: 13px; color: #065F46; line-height: 1.6; font-weight: 500;">AI 기술 단순 개발사에서 AI를 적용하여 실제 영업이익률을 개선하는 밸류체인 하단 기업으로 투자의 패러다임이 이동하고 있습니다.</div>
+                </td>
+              </tr>
+            </table>
+
+            <div style="margin-top: 8px;">
+              <a href="https://www.g-enews.com/article/Global-Biz/2026/09/202609121711084819fbbec65dfb_1" target="_blank" style="font-size: 12px; color: #6366F1; text-decoration: none; font-weight: 500;">관련 기사 보기 (글로벌이코노믹) →</a>
+            </div>
+
+          </td>
+        </tr>
+      </table>
+
+      <!-- 뉴스 카드 박스 (네이버 블로그 표 컴포넌트 호환) -->
+      <table id="news-card-2-2" role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin-bottom: 16px;">
+        <tr>
+          <td style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-left: 4px solid #6366F1; border-radius: 8px; padding: 18px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; gap: 10px;">
+              <div style="font-size: 15px; font-weight: 700; color: #1E293B; line-height: 1.4; flex: 1;">한국-프랑스, AI 및 양자기술 공동 연구 및 기술 협력 강화</div>
+              <button class="no-copy" onclick="copyNewsCard('news-card-2-2')" style="cursor: pointer; background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; white-space: nowrap; transition: all 0.2s;">📋 기사 복사</button>
+            </div>
+            <div style="font-size: 14px; color: #475569; line-height: 1.7; margin-bottom: 10px;">한국과 프랑스가 첨단 인공지능 및 양자 컴퓨팅 분야에서의 전략적 공동 협력을 확대하기로 합의했습니다.</div>
+
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin: 12px 0;">
+              <tr>
+                <td style="background-color: #F0FDF4; border: 1px solid #DCFCE7; border-left: 4px solid #10B981; border-radius: 6px; padding: 12px 14px;">
+                  <div style="font-size: 11px; font-weight: 700; color: #047857; margin-bottom: 4px; letter-spacing: 0.3px;">💡 심층 인사이트 & 시사점 (Why It Matters)</div>
+                  <div style="font-size: 13px; color: #065F46; line-height: 1.6; font-weight: 500;">차세대 양자 인공지능 연구개발 분야의 국가 간 공조가 강화되며 관련 핵심 기술 및 원천 IP 확보를 위한 정책적 지원이 늘어날 것입니다.</div>
+                </td>
+              </tr>
+            </table>
+
+          </td>
+        </tr>
+      </table>
+
+    </div>
+
+    <!-- 섹션: 국제 정세 -->
+    <div style="margin-bottom: 28px;">
+      <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin-bottom: 12px;">
+        <tr>
+          <td style="background-color: #475569; color: #FFFFFF; font-size: 12px; font-weight: 700; padding: 5px 14px; border-radius: 4px; letter-spacing: 0.5px;">
+            🌍 국제 정세
+          </td>
+        </tr>
+      </table>
+
+      <!-- 뉴스 카드 박스 (네이버 블로그 표 컴포넌트 호환) -->
+      <table id="news-card-3-0" role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin-bottom: 16px;">
+        <tr>
+          <td style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-left: 4px solid #475569; border-radius: 8px; padding: 18px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; gap: 10px;">
+              <div style="font-size: 15px; font-weight: 700; color: #1E293B; line-height: 1.4; flex: 1;">브릭스 정상회의 뉴델리 개막… 일방적 경제 제재 반대 공동성명 채택</div>
+              <button class="no-copy" onclick="copyNewsCard('news-card-3-0')" style="cursor: pointer; background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; white-space: nowrap; transition: all 0.2s;">📋 기사 복사</button>
+            </div>
+            <div style="font-size: 14px; color: #475569; line-height: 1.7; margin-bottom: 10px;">브릭스 정상들이 뉴델리에 모여 국제법을 위반한 일방적 제재에 반대하고 중동 정세의 조속한 안정을 촉구하는 공동성명을 채택했습니다.</div>
+
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin: 12px 0;">
+              <tr>
+                <td style="background-color: #F0FDF4; border: 1px solid #DCFCE7; border-left: 4px solid #10B981; border-radius: 6px; padding: 12px 14px;">
+                  <div style="font-size: 11px; font-weight: 700; color: #047857; margin-bottom: 4px; letter-spacing: 0.3px;">💡 심층 인사이트 & 시사점 (Why It Matters)</div>
+                  <div style="font-size: 13px; color: #065F46; line-height: 1.6; font-weight: 500;">글로벌 사우스 중심의 다극화 체제가 더욱 공고해짐에 따라 서방의 대러·대이란 제재 효력이 약화되고 역내 자국 통화 결제 비중이 늘어날 전망입니다.</div>
+                </td>
+              </tr>
+            </table>
+
+          </td>
+        </tr>
+      </table>
+
+      <!-- 뉴스 카드 박스 (네이버 블로그 표 컴포넌트 호환) -->
+      <table id="news-card-3-1" role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin-bottom: 16px;">
+        <tr>
+          <td style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-left: 4px solid #475569; border-radius: 8px; padding: 18px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; gap: 10px;">
+              <div style="font-size: 15px; font-weight: 700; color: #1E293B; line-height: 1.4; flex: 1;">중국 시진핑 주석, '글로벌 사우스' 협력 주창하며 외교적 영향력 확대</div>
+              <button class="no-copy" onclick="copyNewsCard('news-card-3-1')" style="cursor: pointer; background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; white-space: nowrap; transition: all 0.2s;">📋 기사 복사</button>
+            </div>
+            <div style="font-size: 14px; color: #475569; line-height: 1.7; margin-bottom: 10px;">시진핑 주석이 개발도상국 중심의 '글로벌 사우스' 연대를 강조하며 자국 중심의 경제·지정학적 블록 구축에 속도를 내고 있습니다.</div>
+
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin: 12px 0;">
+              <tr>
+                <td style="background-color: #F0FDF4; border: 1px solid #DCFCE7; border-left: 4px solid #10B981; border-radius: 6px; padding: 12px 14px;">
+                  <div style="font-size: 11px; font-weight: 700; color: #047857; margin-bottom: 4px; letter-spacing: 0.3px;">💡 심층 인사이트 & 시사점 (Why It Matters)</div>
+                  <div style="font-size: 13px; color: #065F46; line-height: 1.6; font-weight: 500;">글로벌 자원 및 원자재 공급망이 블록화되면서 핵심 광물 조달 경로에 대한 기업들의 리스크 관리 필요성이 급증하고 있습니다.</div>
+                </td>
+              </tr>
+            </table>
+
+            <div style="margin-top: 8px;">
+              <a href="http://kr.people.com.cn/n3/2026/0912/c208140-20498916.html" target="_blank" style="font-size: 12px; color: #6366F1; text-decoration: none; font-weight: 500;">관련 기사 보기 (인민망 한국어판) →</a>
+            </div>
+
+          </td>
+        </tr>
+      </table>
+
+      <!-- 뉴스 카드 박스 (네이버 블로그 표 컴포넌트 호환) -->
+      <table id="news-card-3-2" role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin-bottom: 16px;">
+        <tr>
+          <td style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-left: 4px solid #475569; border-radius: 8px; padding: 18px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; gap: 10px;">
+              <div style="font-size: 15px; font-weight: 700; color: #1E293B; line-height: 1.4; flex: 1;">중동 악재 및 유가 변동성 확대로 글로벌 증시 심리 위축</div>
+              <button class="no-copy" onclick="copyNewsCard('news-card-3-2')" style="cursor: pointer; background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; white-space: nowrap; transition: all 0.2s;">📋 기사 복사</button>
+            </div>
+            <div style="font-size: 14px; color: #475569; line-height: 1.7; margin-bottom: 10px;">중동 지역 지정학적 긴장에 따른 국제유가 불안이 글로벌 금융시장의 투자 심리를 짓누르고 있습니다.</div>
+
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin: 12px 0;">
+              <tr>
+                <td style="background-color: #F0FDF4; border: 1px solid #DCFCE7; border-left: 4px solid #10B981; border-radius: 6px; padding: 12px 14px;">
+                  <div style="font-size: 11px; font-weight: 700; color: #047857; margin-bottom: 4px; letter-spacing: 0.3px;">💡 심층 인사이트 & 시사점 (Why It Matters)</div>
+                  <div style="font-size: 13px; color: #065F46; line-height: 1.6; font-weight: 500;">에너지 가격 변동성이 글로벌 인플레이션 완화 기조를 위협함에 따라 주요국 중앙은행의 금리 인하 행보가 제약을 받을 수 있습니다.</div>
+                </td>
+              </tr>
+            </table>
+
+            <div style="margin-top: 8px;">
+              <a href="https://www.yna.co.kr/view/AKR20260912001200008" target="_blank" style="font-size: 12px; color: #6366F1; text-decoration: none; font-weight: 500;">관련 기사 보기 (연합뉴스) →</a>
+            </div>
+
+          </td>
+        </tr>
+      </table>
+
+    </div>
+
+    <!-- 섹션: 국내 정치 -->
+    <div style="margin-bottom: 28px;">
+      <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin-bottom: 12px;">
+        <tr>
+          <td style="background-color: #334155; color: #FFFFFF; font-size: 12px; font-weight: 700; padding: 5px 14px; border-radius: 4px; letter-spacing: 0.5px;">
+            🏛️ 국내 정치
+          </td>
+        </tr>
+      </table>
+
+      <!-- 뉴스 카드 박스 (네이버 블로그 표 컴포넌트 호환) -->
+      <table id="news-card-4-0" role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin-bottom: 16px;">
+        <tr>
+          <td style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-left: 4px solid #334155; border-radius: 8px; padding: 18px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; gap: 10px;">
+              <div style="font-size: 15px; font-weight: 700; color: #1E293B; line-height: 1.4; flex: 1;">대통령실, 유가 및 서민 물가 안정 메시지 강조하며 관리 총력</div>
+              <button class="no-copy" onclick="copyNewsCard('news-card-4-0')" style="cursor: pointer; background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; white-space: nowrap; transition: all 0.2s;">📋 기사 복사</button>
+            </div>
+            <div style="font-size: 14px; color: #475569; line-height: 1.7; margin-bottom: 10px;">대통령이 중동발 유가 불안에 대해 국내 영향은 제한적이며 물가 안정을 위한 정부 정책 노력을 지속하겠다고 밝혔습니다.</div>
+
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin: 12px 0;">
+              <tr>
+                <td style="background-color: #F0FDF4; border: 1px solid #DCFCE7; border-left: 4px solid #10B981; border-radius: 6px; padding: 12px 14px;">
+                  <div style="font-size: 11px; font-weight: 700; color: #047857; margin-bottom: 4px; letter-spacing: 0.3px;">💡 심층 인사이트 & 시사점 (Why It Matters)</div>
+                  <div style="font-size: 13px; color: #065F46; line-height: 1.6; font-weight: 500;">에너지 세제 지원 조치 연장 및 유통 구조 개선을 통해 단기적 물가 충격을 완화하려는 정책 수단이 동원될 것으로 보입니다.</div>
+                </td>
+              </tr>
+            </table>
+
+            <div style="margin-top: 8px;">
+              <a href="https://biz.heraldcorp.com/article/10871256" target="_blank" style="font-size: 12px; color: #6366F1; text-decoration: none; font-weight: 500;">관련 기사 보기 (biz.heraldcorp.com) →</a>
+            </div>
+
+          </td>
+        </tr>
+      </table>
+
+      <!-- 뉴스 카드 박스 (네이버 블로그 표 컴포넌트 호환) -->
+      <table id="news-card-4-1" role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin-bottom: 16px;">
+        <tr>
+          <td style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-left: 4px solid #334155; border-radius: 8px; padding: 18px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; gap: 10px;">
+              <div style="font-size: 15px; font-weight: 700; color: #1E293B; line-height: 1.4; flex: 1;">북한 미사일 도발 속 여야, 안보 대책 및 인사 청문 공방 격화</div>
+              <button class="no-copy" onclick="copyNewsCard('news-card-4-1')" style="cursor: pointer; background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; white-space: nowrap; transition: all 0.2s;">📋 기사 복사</button>
+            </div>
+            <div style="font-size: 14px; color: #475569; line-height: 1.7; margin-bottom: 10px;">북한의 군사 도발이 재개되면서 정치권은 안보 대응 방안과 함께 고위직 인사 청문 이슈를 두고 대립각을 세우고 있습니다.</div>
+
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin: 12px 0;">
+              <tr>
+                <td style="background-color: #F0FDF4; border: 1px solid #DCFCE7; border-left: 4px solid #10B981; border-radius: 6px; padding: 12px 14px;">
+                  <div style="font-size: 11px; font-weight: 700; color: #047857; margin-bottom: 4px; letter-spacing: 0.3px;">💡 심층 인사이트 & 시사점 (Why It Matters)</div>
+                  <div style="font-size: 13px; color: #065F46; line-height: 1.6; font-weight: 500;">한반도 지정학적 리스크 지수 상승에 따른 지정학적 디스카운트 지속과 함께 입법부 내 주요 경제 법안 처리가 지연될 수 있습니다.</div>
+                </td>
+              </tr>
+            </table>
+
+            <div style="margin-top: 8px;">
+              <a href="https://www.ytn.co.kr/_ln/0101_202609121240530587" target="_blank" style="font-size: 12px; color: #6366F1; text-decoration: none; font-weight: 500;">관련 기사 보기 (YTN) →</a>
+            </div>
+
+          </td>
+        </tr>
+      </table>
+
+      <!-- 뉴스 카드 박스 (네이버 블로그 표 컴포넌트 호환) -->
+      <table id="news-card-4-2" role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin-bottom: 16px;">
+        <tr>
+          <td style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-left: 4px solid #334155; border-radius: 8px; padding: 18px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; gap: 10px;">
+              <div style="font-size: 15px; font-weight: 700; color: #1E293B; line-height: 1.4; flex: 1;">미 중간선거 D-50, 트럼프 외교 정책 기조 변동성 경계감</div>
+              <button class="no-copy" onclick="copyNewsCard('news-card-4-2')" style="cursor: pointer; background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; white-space: nowrap; transition: all 0.2s;">📋 기사 복사</button>
+            </div>
+            <div style="font-size: 14px; color: #475569; line-height: 1.7; margin-bottom: 10px;">미국 중간선거가 다가옴에 따라 트럼프 행정부의 강경한 외교 및 통상 정책이 국내 산업계에 미칠 영향에 관심이 집중되고 있습니다.</div>
+
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin: 12px 0;">
+              <tr>
+                <td style="background-color: #F0FDF4; border: 1px solid #DCFCE7; border-left: 4px solid #10B981; border-radius: 6px; padding: 12px 14px;">
+                  <div style="font-size: 11px; font-weight: 700; color: #047857; margin-bottom: 4px; letter-spacing: 0.3px;">💡 심층 인사이트 & 시사점 (Why It Matters)</div>
+                  <div style="font-size: 13px; color: #065F46; line-height: 1.6; font-weight: 500;">대미 수출 의존도가 높은 반도체, 자동차, 배터리 업종을 중심으로 보호무역주의 강화에 대비한 대관 및 리스크 관리 전략 재정비가 시급합니다.</div>
+                </td>
+              </tr>
+            </table>
+
+            <div style="margin-top: 8px;">
+              <a href="https://www.newsis.com/view/NISX20260912_0003786644" target="_blank" style="font-size: 12px; color: #6366F1; text-decoration: none; font-weight: 500;">관련 기사 보기 (뉴시스) →</a>
+            </div>
+
+          </td>
+        </tr>
+      </table>
+
+    </div>
+
+    <!-- 섹션: 스포츠 -->
+    <div style="margin-bottom: 28px;">
+      <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin-bottom: 12px;">
+        <tr>
+          <td style="background-color: #EA580C; color: #FFFFFF; font-size: 12px; font-weight: 700; padding: 5px 14px; border-radius: 4px; letter-spacing: 0.5px;">
+            ⚽ 스포츠
+          </td>
+        </tr>
+      </table>
+
+      <!-- 뉴스 카드 박스 (네이버 블로그 표 컴포넌트 호환) -->
+      <table id="news-card-5-0" role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin-bottom: 16px;">
+        <tr>
+          <td style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-left: 4px solid #EA580C; border-radius: 8px; padding: 18px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; gap: 10px;">
+              <div style="font-size: 15px; font-weight: 700; color: #1E293B; line-height: 1.4; flex: 1;">KBO 리그, 역대 최소 경기 2년 연속 1,100만 관중 대기록 달성</div>
+              <button class="no-copy" onclick="copyNewsCard('news-card-5-0')" style="cursor: pointer; background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; white-space: nowrap; transition: all 0.2s;">📋 기사 복사</button>
+            </div>
+            <div style="font-size: 14px; color: #475569; line-height: 1.7; margin-bottom: 10px;">KBO 프로야구가 역대 최소 경기인 626경기 만에 2년 연속 1,100만 관중을 돌파하며 폭발적인 인기를 입증했습니다.</div>
+
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin: 12px 0;">
+              <tr>
+                <td style="background-color: #F0FDF4; border: 1px solid #DCFCE7; border-left: 4px solid #10B981; border-radius: 6px; padding: 12px 14px;">
+                  <div style="font-size: 11px; font-weight: 700; color: #047857; margin-bottom: 4px; letter-spacing: 0.3px;">💡 심층 인사이트 & 시사점 (Why It Matters)</div>
+                  <div style="font-size: 13px; color: #065F46; line-height: 1.6; font-weight: 500;">구단들의 티켓 및 굿즈 매출 급증과 함께 관중 유입을 통한 스폰서십 가치 상승으로 야구 산업 전반의 재무적 선순환이 강화되고 있습니다.</div>
+                </td>
+              </tr>
+            </table>
+
+          </td>
+        </tr>
+      </table>
+
+      <!-- 뉴스 카드 박스 (네이버 블로그 표 컴포넌트 호환) -->
+      <table id="news-card-5-1" role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin-bottom: 16px;">
+        <tr>
+          <td style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-left: 4px solid #EA580C; border-radius: 8px; padding: 18px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; gap: 10px;">
+              <div style="font-size: 15px; font-weight: 700; color: #1E293B; line-height: 1.4; flex: 1;">NC, 4연승 질주로 5위 두산 2경기 차 추격… 치열한 가을야구 경쟁</div>
+              <button class="no-copy" onclick="copyNewsCard('news-card-5-1')" style="cursor: pointer; background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; white-space: nowrap; transition: all 0.2s;">📋 기사 복사</button>
+            </div>
+            <div style="font-size: 14px; color: #475569; line-height: 1.7; margin-bottom: 10px;">NC가 맞대결 승리를 바탕으로 4연승을 거두며 5위 두산을 2경기 차로 바짝 추격해 순위 싸움이 최고조에 달했습니다.</div>
+
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin: 12px 0;">
+              <tr>
+                <td style="background-color: #F0FDF4; border: 1px solid #DCFCE7; border-left: 4px solid #10B981; border-radius: 6px; padding: 12px 14px;">
+                  <div style="font-size: 11px; font-weight: 700; color: #047857; margin-bottom: 4px; letter-spacing: 0.3px;">💡 심층 인사이트 & 시사점 (Why It Matters)</div>
+                  <div style="font-size: 13px; color: #065F46; line-height: 1.6; font-weight: 500;">치열한 5위 싸움으로 인한 포스트시즌 진출 가시성이 경기 직전까지 이어짐에 따라 중계권 및 모바일 관람 시청률 상승세가 이어질 전망입니다.</div>
+                </td>
+              </tr>
+            </table>
+
+            <div style="margin-top: 8px;">
+              <a href="https://sports.khan.co.kr/article/202609122115003/amp" target="_blank" style="font-size: 12px; color: #6366F1; text-decoration: none; font-weight: 500;">관련 기사 보기 (경향신문) →</a>
+            </div>
+
+          </td>
+        </tr>
+      </table>
+
+      <!-- 뉴스 카드 박스 (네이버 블로그 표 컴포넌트 호환) -->
+      <table id="news-card-5-2" role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin-bottom: 16px;">
+        <tr>
+          <td style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-left: 4px solid #EA580C; border-radius: 8px; padding: 18px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; gap: 10px;">
+              <div style="font-size: 15px; font-weight: 700; color: #1E293B; line-height: 1.4; flex: 1;">kt 5연승 선두 질주 및 LG 오스틴 연타석 홈런 폭발</div>
+              <button class="no-copy" onclick="copyNewsCard('news-card-5-2')" style="cursor: pointer; background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; white-space: nowrap; transition: all 0.2s;">📋 기사 복사</button>
+            </div>
+            <div style="font-size: 14px; color: #475569; line-height: 1.7; margin-bottom: 10px;">선두 kt가 5연승을 달리며 독주 체제를 강화했고, LG 오스틴은 연타석 홈런을 쏘아 올리며 팀 연패 탈출을 이끌었습니다.</div>
+
+            <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="width: 100%; border-collapse: separate; margin: 12px 0;">
+              <tr>
+                <td style="background-color: #F0FDF4; border: 1px solid #DCFCE7; border-left: 4px solid #10B981; border-radius: 6px; padding: 12px 14px;">
+                  <div style="font-size: 11px; font-weight: 700; color: #047857; margin-bottom: 4px; letter-spacing: 0.3px;">💡 심층 인사이트 & 시사점 (Why It Matters)</div>
+                  <div style="font-size: 13px; color: #065F46; line-height: 1.6; font-weight: 500;">시즌 후반 선두권 확정과 중심 타선의 활약이 각 구단의 마케팅 흥행과 팬덤 결집을 견인하고 있습니다.</div>
+                </td>
+              </tr>
+            </table>
+
+            <div style="margin-top: 8px;">
+              <a href="https://www.yna.co.kr/amp/view/AKR20260912047051007" target="_blank" style="font-size: 12px; color: #6366F1; text-decoration: none; font-weight: 500;">관련 기사 보기 (연합뉴스) →</a>
+            </div>
+
+          </td>
+        </tr>
+      </table>
+
+    </div>
+
+    </div>
+
+    <div style="margin-top: 24px; padding: 14px 16px; background-color: #F8FAFC; border-radius: 8px; border: 1px solid #E2E8F0; text-align: center;">
+      <div style="font-size: 11px; font-weight: 700; color: #64748B; margin-bottom: 4px;">📌 전략적 종합 관전 포인트</div>
+      <p style="font-size: 13px; color: #475569; line-height: 1.6; margin: 0; font-style: italic;">고금리 환경 속 AI 자금조달 경고등과 글로벌 통화정책 변수가 겹친 만큼, 무분별한 AI 기대감보다는 실질적 현금창출력과 재무건전성을 갖춘 실적 중심 자산으로의 포트폴리오 재편이 요구됩니다.</p>
+    </div>
+
+    <hr style="border: 0; border-top: 1px solid #E2E8F0; margin: 24px 0 16px 0;">
+  </div>
+
+  <!-- ===== 푸터 ===== -->
+  <div style="background-color: #F8FAFC; padding: 18px 24px; text-align: center; border-top: 1px solid #E2E8F0;">
+    <p style="font-size: 11px; color: #94A3B8; margin: 0; line-height: 1.5;">Daily Strategic Intelligence Agent · Powered by Gemini AI<br>2026년 09월 13일 (일) 자동 생성</p>
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script>
+function showToast(message, bgColor) {
+  const toast = document.getElementById('copy-toast');
+  if (!toast) return;
+  toast.innerText = message;
+  toast.style.background = bgColor || '#10B981';
+  toast.style.display = 'block';
+  toast.style.opacity = '1';
+  clearTimeout(window.toastTimer);
+  window.toastTimer = setTimeout(() => {
+    toast.style.opacity = '0';
+    setTimeout(() => { toast.style.display = 'none'; }, 300);
+  }, 3500);
+}
+
+async function copyCardAsImage(elementId, cardName) {
+  const el = document.getElementById(elementId);
+  if (!el) {
+    showToast('❌ 요소를 찾을 수 없습니다: ' + cardName, '#EF4444');
+    return;
+  }
+  if (typeof html2canvas === 'undefined') {
+    showToast('⏳ 캡처 엔진 로드 중입니다. 잠시 후 다시 클릭해 주세요.', '#3B82F6');
+    return;
+  }
+  showToast('⏳ ' + cardName + ' 고화질 이미지 생성 중...', '#3B82F6');
+  try {
+    const canvas = await html2canvas(el, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#FFFFFF',
+      logging: false,
+      ignoreElements: (element) => element.classList && element.classList.contains('no-copy')
+    });
+    canvas.toBlob(async (blob) => {
+      if (!blob) {
+        showToast('❌ 이미지 생성에 실패했습니다.', '#EF4444');
+        return;
+      }
+      try {
+        const item = new ClipboardItem({ 'image/png': blob });
+        await navigator.clipboard.write([item]);
+        showToast('✅ ' + cardName + ' 이미지가 복사되었습니다! 네이버 블로그에서 [Ctrl+V] 하세요.', '#10B981');
+      } catch (err) {
+        console.warn('클립보드 직접 쓰기 제한, 파일 다운로드로 전환:', err);
+        downloadBlob(blob, cardName + '.png');
+        showToast('⚠️ 클립보드 보안 제한으로 이미지 파일로 자동 다운로드되었습니다! (블로그에 사진 첨부)', '#F59E0B');
+      }
+    }, 'image/png');
+  } catch (err) {
+    console.error(err);
+    showToast('❌ 이미지 캡처 실패: ' + err.message, '#EF4444');
+  }
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+async function downloadAllCards() {
+  await downloadSingleCard('briefing-core-summary-card', '01_오늘의_핵심_총평_카드.png');
+  setTimeout(async () => {
+    await downloadSingleCard('briefing-economic-indicators-card', '02_글로벌_주요_경제지표_카드.png');
+  }, 600);
+}
+
+async function downloadSingleCard(elementId, filename) {
+  const el = document.getElementById(elementId);
+  if (!el || typeof html2canvas === 'undefined') return;
+  try {
+    const canvas = await html2canvas(el, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#FFFFFF',
+      logging: false,
+      ignoreElements: (element) => element.classList && element.classList.contains('no-copy')
+    });
+    canvas.toBlob((blob) => {
+      if (blob) {
+        downloadBlob(blob, filename);
+        showToast('💾 ' + filename + ' 다운로드 완료!', '#10B981');
+      }
+    }, 'image/png');
+  } catch(e) {
+    console.error(e);
+  }
+}
+
+async function copyAllContent() {
+  const container = document.getElementById('briefing-content-body');
+  if (!container) {
+    showToast('❌ 복사할 본문 컨테이너를 찾을 수 없습니다.', '#EF4444');
+    return;
+  }
+  try {
+    const clone = container.cloneNode(true);
+    clone.querySelectorAll('.no-copy').forEach(el => el.remove());
+    const htmlContent = clone.innerHTML;
+    const textContent = clone.innerText;
+    
+    if (navigator.clipboard && window.ClipboardItem) {
+      const blobText = new Blob([textContent], { type: 'text/plain' });
+      const blobHtml = new Blob([htmlContent], { type: 'text/html' });
+      await navigator.clipboard.write([new ClipboardItem({ 'text/plain': blobText, 'text/html': blobHtml })]);
+    } else {
+      await navigator.clipboard.writeText(textContent);
+    }
+    showToast('🎉 전체 브리핑(총평+지표+뉴스) 복사 완료! 네이버 블로그에 [Ctrl+V] 하세요.', '#10B981');
+  } catch (err) {
+    console.warn(err);
+    const clone = container.cloneNode(true);
+    clone.querySelectorAll('.no-copy').forEach(el => el.remove());
+    document.body.appendChild(clone);
+    clone.style.position = 'fixed';
+    clone.style.left = '-9999px';
+    const range = document.createRange();
+    range.selectNode(clone);
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+    document.execCommand('copy');
+    window.getSelection().removeAllRanges();
+    document.body.removeChild(clone);
+    showToast('🎉 전체 브리핑(총평+지표+뉴스) 복사 완료! 네이버 블로그에 [Ctrl+V] 하세요.', '#10B981');
+  }
+}
+
+async function copyNewsText() {
+  const container = document.getElementById('briefing-news-sections-container');
+  if (!container) {
+    showToast('❌ 뉴스 본문 컨테이너를 찾을 수 없습니다.', '#EF4444');
+    return;
+  }
+  try {
+    const clone = container.cloneNode(true);
+    clone.querySelectorAll('.no-copy').forEach(el => el.remove());
+    const htmlContent = clone.innerHTML;
+    const textContent = clone.innerText;
+    
+    if (navigator.clipboard && window.ClipboardItem) {
+      const blobText = new Blob([textContent], { type: 'text/plain' });
+      const blobHtml = new Blob([htmlContent], { type: 'text/html' });
+      await navigator.clipboard.write([new ClipboardItem({ 'text/plain': blobText, 'text/html': blobHtml })]);
+    } else {
+      await navigator.clipboard.writeText(textContent);
+    }
+    showToast('✅ 뉴스 본문이 복사되었습니다! 네이버 블로그에 [Ctrl+V] 하세요.', '#10B981');
+  } catch (err) {
+    console.warn(err);
+    const clone = container.cloneNode(true);
+    clone.querySelectorAll('.no-copy').forEach(el => el.remove());
+    document.body.appendChild(clone);
+    clone.style.position = 'fixed';
+    clone.style.left = '-9999px';
+    const range = document.createRange();
+    range.selectNode(clone);
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+    document.execCommand('copy');
+    window.getSelection().removeAllRanges();
+    document.body.removeChild(clone);
+    showToast('✅ 뉴스 본문이 복사되었습니다! 네이버 블로그에 [Ctrl+V] 하세요.', '#10B981');
+  }
+}
+
+async function copyNewsCard(cardId) {
+  const el = document.getElementById(cardId);
+  if (!el) {
+    showToast('❌ 기사 요소를 찾을 수 없습니다.', '#EF4444');
+    return;
+  }
+  try {
+    const clone = el.cloneNode(true);
+    clone.querySelectorAll('.no-copy').forEach(n => n.remove());
+    const htmlContent = clone.outerHTML;
+    const textContent = clone.innerText;
+    if (navigator.clipboard && window.ClipboardItem) {
+      const blobText = new Blob([textContent], { type: 'text/plain' });
+      const blobHtml = new Blob([htmlContent], { type: 'text/html' });
+      await navigator.clipboard.write([new ClipboardItem({ 'text/plain': blobText, 'text/html': blobHtml })]);
+    } else {
+      await navigator.clipboard.writeText(textContent);
+    }
+    showToast('✅ 기사가 복사되었습니다! 네이버 블로그에 [Ctrl+V] 하세요.', '#10B981');
+  } catch (err) {
+    console.error(err);
+    showToast('❌ 기사 복사 실패: ' + err.message, '#EF4444');
+  }
+}
+</script>
+
+
+</body>
+</html>
