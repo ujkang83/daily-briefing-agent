@@ -2,8 +2,8 @@ name: 일일 브리핑 에이전트 파이프라인
 
 on:
   schedule:
-    # 매일 아침 6시 KST 실행 (UTC 21:00)
-    - cron: '0 21 * * *'
+    # 매일 아침 5시 47분 KST 실행 (UTC 20:47, 정각 대기열 병목 완벽 회피)
+    - cron: '47 20 * * *'
   workflow_dispatch: # 수동 실행 활성화
 
 jobs:
