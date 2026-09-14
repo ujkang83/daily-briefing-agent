@@ -436,8 +436,8 @@ def get_economic_indicators():
             "items": [
                 {"name": "코스피 (KOSPI)", "sym": "^KS11", "unit": "pt"},
                 {"name": "코스닥 (KOSDAQ)", "sym": "^KQ11", "unit": "pt"},
-                {"name": "삼성전자 (시총 1위)", "sym": "005930.KS", "unit": "원"},
-                {"name": "SK하이닉스 (시총 2위)", "sym": "000660.KS", "unit": "원"},
+                {"name": "삼성전자 (시총 1위)", "sym": "005930.KS", "unit": "원", "no_decimal": True},
+                {"name": "SK하이닉스 (시총 2위)", "sym": "000660.KS", "unit": "원", "no_decimal": True},
             ]
         },
         {
@@ -495,7 +495,8 @@ def get_economic_indicators():
                                 'change': change,
                                 'pct': pct,
                                 'category': cat_name,
-                                'unit': unit
+                                'unit': unit,
+                                'no_decimal': item.get("no_decimal", False) or (cat_name == "국내 지표" and unit == "원")
                             }
                             continue
                 logger.warning(f"경제 지표 수집 실패 ({name}): API 응답 이상")
@@ -676,7 +677,11 @@ class AIEngine:
                 indicators_text += f"[{cat}]\n"
                 for name, val in items:
                     unit = val.get("unit", "")
-                    indicators_text += f"- {name}: {val['price']:,.2f}{unit} (전일비 {val['change']:+,.2f}, {val['pct']:+.2f}%)\n"
+                    is_no_dec = val.get("no_decimal", False) or (cat == "국내 지표" and unit == "원")
+                    if is_no_dec:
+                        indicators_text += f"- {name}: {val['price']:,.0f}{unit} (전일비 {val['change']:+,.0f}, {val['pct']:+.2f}%)\n"
+                    else:
+                        indicators_text += f"- {name}: {val['price']:,.2f}{unit} (전일비 {val['change']:+,.2f}, {val['pct']:+.2f}%)\n"
             indicators_text += "\n"
 
         prompt = f"""당신은 글로벌 탑티어 전략 컨설팅 펌(맥킨지, BCG) 및 최고급 투자기관의 [수석 경제·산업 전략 애널리스트(Chief Strategy Analyst)]입니다.
@@ -992,7 +997,13 @@ def _render_indicator_cards(indicators, for_local_viewer=False):
             html_parts.append("        <tr>")
             chunk = items[i:i+2]
             for name, val in chunk:
-                price_str = f"{val['price']:,.2f}"
+                is_no_dec = val.get("no_decimal", False) or (cat == "국내 지표" and val.get("unit") == "원")
+                if is_no_dec:
+                    price_str = f"{val['price']:,.0f}"
+                    change_str = f"{abs(val['change']):,.0f}"
+                else:
+                    price_str = f"{val['price']:,.2f}"
+                    change_str = f"{abs(val['change']):,.2f}"
                 change = val['change']
                 pct = val['pct']
                 unit = val.get('unit', '')
@@ -1018,7 +1029,7 @@ def _render_indicator_cards(indicators, for_local_viewer=False):
               {price_str} <span style="font-size: 11px; font-weight: 500; color: #64748B;">{unit}</span>
             </div>
             <div style="display: inline-block; background-color: {bg_badge}; color: {color}; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px; line-height: 1.2;">
-              {arrow} {abs(change):,.2f} ({pct:+.2f}%)
+              {arrow} {change_str} ({pct:+.2f}%)
             </div>
           </td>""")
             
