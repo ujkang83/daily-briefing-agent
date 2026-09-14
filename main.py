@@ -599,6 +599,7 @@ class DailyBriefing(BaseModel):
     image_prompt: Optional[str] = Field(default="", description="오늘의 핵심 테마를 표현하는 영문 이미지 생성 프롬프트")
     sections: List[BriefingSection]
     closing_comment: Optional[str] = Field(default="", description="전문가적 관점의 향후 관전 포인트 및 마무리 코멘트")
+    daily_quote: Optional[str] = Field(default="", description="오늘 하루를 시작하는 독자들에게 깊은 울림과 영감, 통찰과 용기를 주는 동서고금 위인이나 글로벌 리더의 명언 1문장과 인물명 (예: '승리는 가장 끈기 있는 자에게 돌아간다. - 나폴레옹 보나파르트')")
     short_summary_for_sns: str = Field(description="전체 브리핑 200자 내외 요약 (모바일/메신저 전송용)")
 
 
@@ -731,6 +732,7 @@ class AIEngine:
      - 기업의 채용(대졸 신입/경력 채용, AI 문제해결력 검증 등), 일반 경영, SDV/모빌리티 기술, 재무 실적 발표 등은 절대 스포츠가 아닙니다. 스포츠 구단 모기업(기아, 삼성, 현대차, 한화 등)이라는 핑계로 기업 채용이나 일반 경영 뉴스를 스포츠 카테고리에 분류하는 것을 엄격히 금지합니다.
      - 동일 기업이나 동일 사건(예: 기아 채용 기사 여러 건 등)을 같은 카테고리 내에서 2개 이상의 아이템으로 중복하여 작성하는 것을 엄격히 금지합니다. 단 1개의 대표 아이템으로만 다루십시오.
 8. 각 기사 항목의 원문 기사 식별자(article_id)를 통해 링크와 언론사가 자동 매핑됩니다. 경제 지표 요약 항목의 article_id는 'INDICATOR'로 지정하십시오.
+9. ★오늘의 명언(daily_quote)★: 브리핑 맨 마지막에 오늘 하루를 시작하는 독자들에게 깊은 울림, 통찰, 용기, 영감을 주는 역사적 위인, 철학자, 글로벌 리더, 석학의 명언 1문장을 인물명과 함께 격조 높게 선정하십시오. (예: "가장 큰 영광은 한 번도 실패하지 않는 것이 아니라, 넘어질 때마다 일어서는 데 있다. - 넬슨 만델라")
 
 응답은 반드시 아래 JSON 스키마를 따르며, 마크다운 코드 블록 없이 순수 JSON만 출력하세요:
 
@@ -767,6 +769,7 @@ class AIEngine:
     }}
   ],
   "closing_comment": "String (전문가적 관점의 마무리 총평 1문장)",
+  "daily_quote": "String (오늘 하루를 시작하는 독자들을 위한 영감과 용기의 명언 1문장 - 인물명 포함. 예: '가장 큰 영광은 한 번도 실패하지 않는 것이 아니라, 넘어질 때마다 일어서는 데 있다. - 넬슨 만델라')",
   "short_summary_for_sns": "String (200자 내외 SNS 요약)"
 }}"""
 
@@ -1515,6 +1518,26 @@ def format_briefing_to_html(briefing_data, indicators=None, has_image=False, for
       <p style="font-size: 13px; color: #475569; line-height: 1.6; margin: 0; font-style: italic;">{closing_html}</p>
     </div>""")
 
+    # ── 5.5. 오늘의 명언 (Quote of the Day) ──
+    daily_quote = briefing_data.get("daily_quote", "")
+    if daily_quote:
+        quote_clean = daily_quote.replace('"', '').replace('“', '').replace('”', '').strip()
+        if " - " in quote_clean:
+            q_text, q_author = quote_clean.rsplit(" - ", 1)
+        elif " — " in quote_clean:
+            q_text, q_author = quote_clean.rsplit(" — ", 1)
+        else:
+            q_text, q_author = quote_clean, ""
+
+        author_html = f"""<div style="margin-top: 8px; font-size: 13px; font-weight: 600; color: #6366F1; text-align: right;">— {q_author}</div>""" if q_author else ""
+
+        parts.append(f"""
+    <div style="margin-top: 20px; padding: 18px 22px; background: linear-gradient(135deg, #F8FAFC 0%, #EEF2FF 100%); border-radius: 12px; border: 1px solid #E0E7FF; border-left: 5px solid #6366F1; box-shadow: 0 2px 8px rgba(99, 102, 241, 0.06);">
+      <div style="font-size: 11px; font-weight: 700; color: #4F46E5; letter-spacing: 0.5px; margin-bottom: 8px;">✨ TODAY'S INSPIRING QUOTE · 오늘의 명언</div>
+      <p style="font-size: 14px; font-weight: 600; color: #1E293B; line-height: 1.7; margin: 0; font-style: italic;">“{q_text}”</p>
+      {author_html}
+    </div>""")
+
     # ── 6. 푸터 ──
     parts.append(f"""
     <hr style="border: 0; border-top: 1px solid #E2E8F0; margin: 24px 0 16px 0;">
@@ -2064,8 +2087,10 @@ def main():
     daily_summary = briefing.get("daily_summary") or ""
     sns_text = briefing.get("short_summary_for_sns", "")
     
-    # 메신저 본문 구성: 1문장 핵심 요약을 최상단에 배치
-    messenger_body = f"📢 *{title}*\n\n✨ *오늘의 핵심 요약:*\n{daily_summary}\n\n{sns_text}" if daily_summary else f"📢 *{title}*\n\n{sns_text}"
+    # 메신저 본문 구성: 1문장 핵심 요약을 최상단에 배치, 오늘의 명언을 하단에 배치
+    daily_quote = briefing.get("daily_quote", "")
+    quote_part = f"\n\n✨ *오늘의 명언:*\n_{daily_quote}_" if daily_quote else ""
+    messenger_body = f"📢 *{title}*\n\n✨ *오늘의 핵심 요약:*\n{daily_summary}\n\n{sns_text}{quote_part}" if daily_summary else f"📢 *{title}*\n\n{sns_text}{quote_part}"
     
     sent_list = []
     
