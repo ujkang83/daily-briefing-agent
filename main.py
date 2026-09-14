@@ -424,12 +424,12 @@ def collect_all_news(keywords, naver_id=None, naver_secret=None, limit_per_keywo
     return all_articles
 
 def get_economic_indicators():
-    """야후 파이낸스 API를 통해 4대 카테고리(국내 지표, 해외 지표, 환율, 유가)의 주요 지표 10종을 수집합니다."""
+    """야후 파이낸스 API를 통해 4대 카테고리(국내 지표, 해외 지표, 환율, 원자재 & 금리)의 주요 지표 18종을 수집합니다."""
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
     }
     
-    # 4대 카테고리별 지표 및 심볼 정의
+    # 4대 카테고리별 지표 및 심볼 정의 (총 18개, 전 카테고리 2열 짝수 대칭)
     categories_config = [
         {
             "category": "국내 지표",
@@ -443,8 +443,12 @@ def get_economic_indicators():
         {
             "category": "해외 지표",
             "items": [
+                {"name": "S&P 500", "sym": "^GSPC", "unit": "pt"},
                 {"name": "나스닥 (NASDAQ)", "sym": "^IXIC", "unit": "pt"},
                 {"name": "다우존스 (DOW)", "sym": "^DJI", "unit": "pt"},
+                {"name": "독일 DAX", "sym": "^GDAXI", "unit": "pt"},
+                {"name": "일본 닛케이 (Nikkei 225)", "sym": "^N225", "unit": "pt"},
+                {"name": "홍콩 항셍 (Hang Seng)", "sym": "^HSI", "unit": "pt"},
             ]
         },
         {
@@ -453,12 +457,16 @@ def get_economic_indicators():
                 {"name": "원/달러 환율", "sym": "USDKRW=X", "unit": "원"},
                 {"name": "원/유로 환율", "sym": "EURKRW=X", "unit": "원"},
                 {"name": "원/엔 환율 (100엔)", "sym": "JPYKRW=X", "unit": "원", "is_100yen": True},
+                {"name": "달러 인덱스 (DXY)", "sym": "DX-Y.NYB", "unit": "pt"},
             ]
         },
         {
-            "category": "유가",
+            "category": "원자재 & 금리",
             "items": [
                 {"name": "WTI 원유", "sym": "CL=F", "unit": "$"},
+                {"name": "브렌트유 (Brent)", "sym": "BZ=F", "unit": "$"},
+                {"name": "국제 금 (Gold)", "sym": "GC=F", "unit": "$"},
+                {"name": "미국 10년물 국채금리", "sym": "^TNX", "unit": "%"},
             ]
         }
     ]
@@ -945,18 +953,18 @@ def generate_summary_image(ai_engine, briefing_data, indicators=None):
 
 def _render_indicator_cards(indicators, for_local_viewer=False):
     """
-    경제 지표를 4대 카테고리(국내 지표, 해외 지표, 환율, 유가)의
+    경제 지표를 4대 카테고리(국내 지표, 해외 지표, 환율, 원자재 & 금리)의
     모바일/이메일 완벽 호환 요약 카드 그리드로 렌더링합니다.
     """
     if not indicators:
         return ""
         
-    category_order = ["국내 지표", "해외 지표", "환율", "유가"]
+    category_order = ["국내 지표", "해외 지표", "환율", "원자재 & 금리"]
     category_icons = {
         "국내 지표": "🇰🇷",
         "해외 지표": "🌐",
         "환율": "💱",
-        "유가": "🛢️"
+        "원자재 & 금리": "🪙"
     }
     
     # 카테고리별로 지표 분류
