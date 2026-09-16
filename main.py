@@ -993,16 +993,40 @@ def _generate_infographic_card(briefing_data, indicators=None):
         insights = briefing_data.get("executive_insights", [])
         if insights and isinstance(insights, list):
             for ins in insights[:3]:
-                h = ins.get("title", "").strip()
-                s = ins.get("description", "").strip()
+                if isinstance(ins, dict):
+                    h = ins.get("title", "").strip()
+                    s = ins.get("description", "").strip()
+                elif isinstance(ins, str):
+                    ins_clean = re.sub(r'^[0-9]+[.\-)]\s*', '', ins).strip()
+                    if ":" in ins_clean:
+                        parts = ins_clean.split(":", 1)
+                        h = parts[0].strip()
+                        s = parts[1].strip()
+                    elif " - " in ins_clean:
+                        parts = ins_clean.split(" - ", 1)
+                        h = parts[0].strip()
+                        s = parts[1].strip()
+                    else:
+                        h = ins_clean
+                        s = ""
+                else:
+                    h, s = str(ins), ""
                 if h:
                     items.append((h, s))
         if len(items) < 3:
             sections = briefing_data.get("sections", [])
             for sec in sections:
+                if not isinstance(sec, dict):
+                    continue
                 for art in sec.get("articles", []):
-                    h = art.get("title", "").strip()
-                    s = art.get("summary", "").strip()
+                    if isinstance(art, dict):
+                        h = art.get("title", "").strip()
+                        s = art.get("summary", "").strip()
+                    elif isinstance(art, str):
+                        h = art.strip()
+                        s = ""
+                    else:
+                        h, s = "", ""
                     if h and (h, s) not in items:
                         items.append((h, s))
                         if len(items) >= 3:
@@ -1086,11 +1110,12 @@ def _generate_infographic_card(briefing_data, indicators=None):
         if idx > 0:
             draw.line([(col_x, ind_y + 12), (col_x, ind_y + ind_h - 12)], fill="#1E293B", width=1)
         
-        draw.text((col_x + 20, ind_y + 16), iname, font=font_ind_label, fill="#94A3B8")
-        
-        price = idata.get("price", 0)
-        change = idata.get("change", 0)
-        pct = idata.get("pct", 0)
+        if isinstance(idata, dict):
+            price = idata.get("price", 0)
+            change = idata.get("change", 0)
+            pct = idata.get("pct", 0)
+        else:
+            price, change, pct = 0, 0, 0
         
         if isinstance(price, (int, float)):
             price_str = f"{price:,.0f}" if (iname == "코스피" or "환율" in iname) and price > 1000 else f"{price:,.2f}"

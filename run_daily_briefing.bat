@@ -1,6 +1,5 @@
 @echo off
 chcp 65001 > nul
-setlocal enabledelayedexpansion
 
 :: 작업 디렉토리를 이 배치 파일이 위치한 폴더로 이동
 cd /d "%~dp0"
@@ -20,15 +19,15 @@ echo ======================================================= >> "%LOGFILE%"
 echo [데일리 브리핑] 작업을 시작합니다... (로그: %LOGFILE%)
 
 "%PYTHON_EXE%" main.py >> "%LOGFILE%" 2>&1
-set EXITCODE=%errorlevel%
+set EXITCODE=%ERRORLEVEL%
 
-if %EXITCODE% EQU 0 (
-    echo [%date% %time%] ✅ 데일리 브리핑 성공 완료 (종료코드: 0) >> "%LOGFILE%"
-    echo [데일리 브리핑] ✅ 성공적으로 완료되었습니다!
+if "%EXITCODE%"=="0" (
+    echo [%date% %time%] [성공] 데일리 브리핑 정상 완료 (종료코드: 0) >> "%LOGFILE%"
+    echo [데일리 브리핑] 성공적으로 완료되었습니다.
 ) else (
-    echo [%date% %time%] ❌ 데일리 브리핑 실행 실패 (종료코드: %EXITCODE%) >> "%LOGFILE%"
-    echo [%date% %time%] ❌ 데일리 브리핑 실행 실패 (종료코드: %EXITCODE%) >> "%ERRFILE%"
-    echo [데일리 브리핑] ❌ 실행 중 오류가 발생했습니다. (상세 내용은 %LOGFILE% 참조)
+    echo [%date% %time%] [실패] 데일리 브리핑 실행 실패 (종료코드: %EXITCODE%) >> "%LOGFILE%"
+    echo [%date% %time%] [실패] 데일리 브리핑 실행 실패 (종료코드: %EXITCODE%) >> "%ERRFILE%"
+    echo [데일리 브리핑] 실행 중 오류가 발생했습니다. 상세 내용은 %LOGFILE% 참조.
 )
 
 :: 스케줄러 백그라운드 호출(/silent)이 아닐 때만 5초 대기
