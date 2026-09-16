@@ -1059,14 +1059,23 @@ def _generate_infographic_card(briefing_data, indicators=None):
         draw.text((86, cy + 18), num_str, font=font_card_num, fill=accent_color)
         
         head_clean = re.sub(r'^[⚡🔥💡\s0-9\[\]\-]+', '', head).strip()
-        if len(head_clean) > 42:
-            head_clean = head_clean[:40] + "..."
-        draw.text((135, cy + 18), head_clean, font=font_card_text, fill="#F8FAFC")
-        
         sub_clean = re.sub(r'\s+', ' ', sub).strip()
-        if len(sub_clean) > 58:
-            sub_clean = sub_clean[:56] + "..."
-        draw.text((135, cy + 52), sub_clean, font=font_card_sub, fill="#94A3B8")
+        
+        if not sub_clean:
+            if len(head_clean) > 42:
+                line1 = head_clean[:40]
+                line2 = head_clean[40:82] + ("..." if len(head_clean) > 82 else "")
+                draw.text((135, cy + 18), line1, font=font_card_text, fill="#F8FAFC")
+                draw.text((135, cy + 50), line2, font=font_card_sub, fill="#CBD5E1")
+            else:
+                draw.text((135, cy + 32), head_clean, font=font_card_text, fill="#F8FAFC")
+        else:
+            if len(head_clean) > 42:
+                head_clean = head_clean[:40] + "..."
+            if len(sub_clean) > 58:
+                sub_clean = sub_clean[:56] + "..."
+            draw.text((135, cy + 18), head_clean, font=font_card_text, fill="#F8FAFC")
+            draw.text((135, cy + 52), sub_clean, font=font_card_sub, fill="#94A3B8")
 
     # 7. 하단 주요 지표 바
     ind_y = 485
@@ -1109,6 +1118,8 @@ def _generate_infographic_card(briefing_data, indicators=None):
         col_x = 60 + idx * col_w
         if idx > 0:
             draw.line([(col_x, ind_y + 12), (col_x, ind_y + ind_h - 12)], fill="#1E293B", width=1)
+        
+        draw.text((col_x + 20, ind_y + 16), iname, font=font_ind_label, fill="#94A3B8")
         
         if isinstance(idata, dict):
             price = idata.get("price", 0)
