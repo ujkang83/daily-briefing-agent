@@ -1,10 +1,11 @@
 name: 일일 브리핑 에이전트 파이프라인
 
 on:
-  schedule:
-    # 매일 아침 5시 47분 KST 실행 (UTC 20:47, 정각 대기열 병목 완벽 회피)
-    - cron: '47 20 * * *'
-  workflow_dispatch: # 수동 실행 활성화
+  # PC 윈도우 작업 스케줄러 전환에 따라 깃허브 액션 자동 스케줄 비활성화 (지연/병목 원천 차단)
+  # schedule:
+  #   # 매일 아침 5시 47분 KST 실행 (UTC 20:47)
+  #   - cron: '47 20 * * *'
+  workflow_dispatch: # 수동 실행 활성화 (필요 시 웹에서 언제든 1회성 실행 가능)
 
 jobs:
   run-agent:
