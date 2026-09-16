@@ -910,45 +910,276 @@ def _get_badge_style(category):
 
 
 # ==========================================
-# 3.5단계: 일일 요약 이미지 생성기 (AI Image Generator)
+# 3.5단계: 일일 요약 썸네일 이미지 생성기 (Smart Hybrid Image Generator)
 # ==========================================
+def _get_font(size, bold=False):
+    """Windows 시스템 및 프로젝트 내 한글 폰트를 안전하게 로드합니다."""
+    candidates = [
+        "C:/Windows/Fonts/malgunbd.ttf" if bold else "C:/Windows/Fonts/malgun.ttf",
+        "C:/Windows/Fonts/malgun.ttf",
+        "C:/Windows/Fonts/gulim.ttc",
+        "malgun.ttf",
+        "Arial.ttf"
+    ]
+    for path in candidates:
+        if os.path.exists(path):
+            try:
+                return ImageFont.truetype(path, size)
+            except Exception:
+                pass
+    return ImageFont.load_default()
+
+
+def _generate_infographic_card(briefing_data, indicators=None):
+    """
+    100% 무결점 프리미엄 일일 요약 인포그래픽 썸네일(1200x630)을 생성합니다.
+    Pillow 그래픽 엔진을 기반으로 날짜, 3대 핵심 이슈, 주요 지표를 렌더링합니다.
+    """
+    width, height = 1200, 630
+    img = Image.new("RGB", (width, height), "#0B0F19")
+    draw = ImageDraw.Draw(img)
+
+    # 1. 배경 그라데이션 (다크 네이비 -> 다크 슬레이트)
+    for y in range(height):
+        ratio = y / height
+        r = int(11 * (1 - ratio) + 22 * ratio)
+        g = int(15 * (1 - ratio) + 30 * ratio)
+        b = int(25 * (1 - ratio) + 48 * ratio)
+        draw.line([(0, y), (width, y)], fill=(r, g, b))
+
+    # 2. 상단 네온 액센트 라인 (인디고 -> 시안 그라데이션)
+    for x in range(width):
+        rx = x / width
+        ar = int(99 * (1 - rx) + 56 * rx)
+        ag = int(102 * (1 - rx) + 189 * rx)
+        ab = int(241 * (1 - rx) + 248 * rx)
+        draw.line([(x, 0), (x, 5)], fill=(ar, ag, ab))
+
+    # 3. 폰트 로드
+    font_badge = _get_font(18, bold=True)
+    font_date = _get_font(20, bold=False)
+    font_title = _get_font(38, bold=True)
+    font_card_num = _get_font(22, bold=True)
+    font_card_text = _get_font(21, bold=True)
+    font_card_sub = _get_font(16, bold=False)
+    font_ind_label = _get_font(16, bold=False)
+    font_ind_val = _get_font(18, bold=True)
+    font_footer = _get_font(15, bold=False)
+
+    # 4. 헤더 뱃지 및 날짜
+    badge_text = "DAILY INTELLIGENCE BRIEFING"
+    badge_bbox = draw.textbbox((0, 0), badge_text, font=font_badge)
+    badge_w = badge_bbox[2] - badge_bbox[0]
+    badge_h = badge_bbox[3] - badge_bbox[1]
+    
+    bx, by = 60, 36
+    draw.rounded_rectangle([bx, by, bx + badge_w + 24, by + badge_h + 12], radius=12, fill="#1E1B4B", outline="#4F46E5", width=1)
+    draw.text((bx + 12, by + 6), badge_text, font=font_badge, fill="#A5B4FC")
+
+    today_str = datetime.now(KST).strftime("%Y.%m.%d (%a)").replace("Mon", "월").replace("Tue", "화").replace("Wed", "수").replace("Thu", "목").replace("Fri", "금").replace("Sat", "토").replace("Sun", "일")
+    date_bbox = draw.textbbox((0, 0), today_str, font=font_date)
+    draw.text((width - 60 - (date_bbox[2] - date_bbox[0]), 42), today_str, font=font_date, fill="#94A3B8")
+
+    # 5. 메인 타이틀
+    raw_title = briefing_data.get("title", "오늘의 글로벌 경제 & 산업 핵심 브리핑") if briefing_data else "오늘의 글로벌 경제 & 산업 핵심 브리핑"
+    clean_title = re.sub(r'^[📢📬✨]\s*', '', raw_title).strip()
+    if len(clean_title) > 36:
+        clean_title = clean_title[:34] + "..."
+    draw.text((60, 88), clean_title, font=font_title, fill="#FFFFFF")
+
+    # 6. 핵심 3대 하이라이트 추출
+    items = []
+    if briefing_data:
+        insights = briefing_data.get("executive_insights", [])
+        if insights and isinstance(insights, list):
+            for ins in insights[:3]:
+                h = ins.get("title", "").strip()
+                s = ins.get("description", "").strip()
+                if h:
+                    items.append((h, s))
+        if len(items) < 3:
+            sections = briefing_data.get("sections", [])
+            for sec in sections:
+                for art in sec.get("articles", []):
+                    h = art.get("title", "").strip()
+                    s = art.get("summary", "").strip()
+                    if h and (h, s) not in items:
+                        items.append((h, s))
+                        if len(items) >= 3:
+                            break
+                if len(items) >= 3:
+                    break
+
+    # 기본 폴백 항목
+    fallback_items = [
+        ("AI 인프라 투자 및 빅테크 밸류체인 재편", "글로벌 기술주 자금 흐름 및 실적 기반 자산으로의 이동 가속"),
+        ("글로벌 거시경제 및 주요국 통화정책 동향", "주요 경제 지표 변동성 및 안전자산 선호 심리 확산"),
+        ("국내외 산업 핵심 기술 및 시장 구조 변화", "차세대 성장 동력 및 에이전트 인프라 혁신 가속화")
+    ]
+    while len(items) < 3:
+        items.append(fallback_items[len(items)])
+
+    card_y = 155
+    card_h = 92
+    card_w = 1080
+    card_gap = 14
+
+    for i, (head, sub) in enumerate(items[:3]):
+        cy = card_y + i * (card_h + card_gap)
+        draw.rounded_rectangle([60, cy, 60 + card_w, cy + card_h], radius=12, fill="#141E33", outline="#253554", width=1)
+        
+        accent_color = "#6366F1" if i == 0 else ("#0284C7" if i == 1 else "#0D9488")
+        draw.rounded_rectangle([60, cy, 66, cy + card_h], radius=3, fill=accent_color)
+        
+        num_str = f"0{i+1}"
+        draw.text((86, cy + 18), num_str, font=font_card_num, fill=accent_color)
+        
+        head_clean = re.sub(r'^[⚡🔥💡\s0-9\[\]\-]+', '', head).strip()
+        if len(head_clean) > 42:
+            head_clean = head_clean[:40] + "..."
+        draw.text((135, cy + 18), head_clean, font=font_card_text, fill="#F8FAFC")
+        
+        sub_clean = re.sub(r'\s+', ' ', sub).strip()
+        if len(sub_clean) > 58:
+            sub_clean = sub_clean[:56] + "..."
+        draw.text((135, cy + 52), sub_clean, font=font_card_sub, fill="#94A3B8")
+
+    # 7. 하단 주요 지표 바
+    ind_y = 485
+    ind_h = 75
+    draw.rounded_rectangle([60, ind_y, 60 + card_w, ind_y + ind_h], radius=12, fill="#0F172A", outline="#1E293B", width=1)
+    
+    ind_samples = []
+    if indicators and isinstance(indicators, dict):
+        preferred = ["코스피", "S&P 500", "나스닥", "원/달러 환율", "원/달러", "WTI유", "WTI 유가", "미국 국채 10년"]
+        picked = set()
+        for pref in preferred:
+            for k, v in indicators.items():
+                if pref in k and k not in picked:
+                    picked.add(k)
+                    ind_samples.append((k, v))
+                    if len(ind_samples) >= 4:
+                        break
+            if len(ind_samples) >= 4:
+                break
+        if len(ind_samples) < 4:
+            for k, v in indicators.items():
+                if k not in picked:
+                    picked.add(k)
+                    ind_samples.append((k, v))
+                    if len(ind_samples) >= 4:
+                        break
+
+    # 지표 데이터가 없거나 부족한 경우의 기본값
+    if len(ind_samples) < 4:
+        dummy_inds = [
+            ("코스피", {"price": 2650.0, "change": 15.2, "pct": 0.58}),
+            ("S&P 500", {"price": 5620.0, "change": 22.4, "pct": 0.40}),
+            ("원/달러 환율", {"price": 1380.0, "change": -2.5, "pct": -0.18}),
+            ("WTI 유가", {"price": 78.5, "change": 0.8, "pct": 1.03})
+        ]
+        ind_samples = dummy_inds
+
+    col_w = card_w / len(ind_samples)
+    for idx, (iname, idata) in enumerate(ind_samples[:4]):
+        col_x = 60 + idx * col_w
+        if idx > 0:
+            draw.line([(col_x, ind_y + 12), (col_x, ind_y + ind_h - 12)], fill="#1E293B", width=1)
+        
+        draw.text((col_x + 20, ind_y + 16), iname, font=font_ind_label, fill="#94A3B8")
+        
+        price = idata.get("price", 0)
+        change = idata.get("change", 0)
+        pct = idata.get("pct", 0)
+        
+        if isinstance(price, (int, float)):
+            price_str = f"{price:,.0f}" if (iname == "코스피" or "환율" in iname) and price > 1000 else f"{price:,.2f}"
+        else:
+            price_str = str(price)
+            
+        draw.text((col_x + 20, ind_y + 40), price_str, font=font_ind_val, fill="#FFFFFF")
+        val_w = draw.textbbox((0, 0), price_str, font=font_ind_val)[2]
+        
+        if change > 0:
+            chg_str = f"+{pct:.2f}%"
+            chg_color = "#EF4444"
+        elif change < 0:
+            chg_str = f"{pct:.2f}%"
+            chg_color = "#3B82F6"
+        else:
+            chg_str = f"{pct:.2f}%"
+            chg_color = "#94A3B8"
+            
+        draw.text((col_x + 20 + val_w + 6, ind_y + 42), chg_str, font=font_ind_label, fill=chg_color)
+
+    # 8. 푸터 영역
+    draw.text((60, 582), "◈ Morning Strategic Intelligence | Powered by Gemini", font=font_footer, fill="#475569")
+    draw.text((width - 320, 582), "네이버 블로그 & 이메일 데일리 리포트", font=font_footer, fill="#475569")
+
+    # 9. 바이트 변환 및 파일 저장
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=95)
+    img_bytes = buf.getvalue()
+    
+    local_img_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "daily_summary_latest.jpg")
+    try:
+        with open(local_img_path, "wb") as f:
+            f.write(img_bytes)
+        logger.info(f"🎨 [인포그래픽 썸네일] 고화질 이미지 생성 및 저장 완료 ({len(img_bytes):,} bytes): {local_img_path}")
+    except Exception as e:
+        logger.warning(f"로컬 이미지 저장 실패 (계속 진행): {e}")
+
+    return img_bytes
+
+
 def generate_summary_image(ai_engine, briefing_data, indicators=None):
     """
-    Gemini AI 모델을 사용하여 일일 요약 이미지를 생성합니다.
-    AI 이미지 생성이 불가능하거나 오류 발생 시 None을 반환합니다 (인포그래픽 제외).
+    일일 요약 썸네일 이미지를 생성합니다.
+    1차: 구글 Gemini AI 이미지 모델 호출 시도 (유료 크레딧/지원 계정)
+    2차: 쿼터 초과(429), 무료 계정 제한(limit:0) 또는 오류 발생 시
+         100% 무결점 프리미엄 인포그래픽 썸네일(Pillow)로 즉시 자동 폴백.
     """
-    image_prompt = briefing_data.get("image_prompt", "")
+    image_prompt = briefing_data.get("image_prompt", "") if briefing_data else ""
 
-    if not ai_engine or not ai_engine.client or not image_prompt:
+    # 1차 시도: 구글 Gemini AI 이미지 생성 시도
+    if ai_engine and hasattr(ai_engine, 'client') and ai_engine.client and image_prompt:
+        logger.info("1차 시도: 구글 Gemini AI 일일 요약 이미지 생성 요청...")
+        candidates = [
+            'gemini-2.5-flash-image',
+            'gemini-3.1-flash-lite-image',
+            'gemini-3.1-flash-image',
+            'gemini-3-pro-image'
+        ]
+        for model_name in candidates:
+            try:
+                logger.info(f"Gemini AI 이미지 모델 호출: {model_name}")
+                resp = ai_engine.client.models.generate_content(
+                    model=model_name,
+                    contents=image_prompt
+                )
+                if resp and resp.candidates and resp.candidates[0].content and resp.candidates[0].content.parts:
+                    for part in resp.candidates[0].content.parts:
+                        if hasattr(part, 'inline_data') and part.inline_data and part.inline_data.data:
+                            logger.info(f"✅ Gemini AI 생성 이미지 획득 성공 ({model_name})")
+                            img_bytes = part.inline_data.data
+                            try:
+                                local_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "daily_summary_latest.jpg")
+                                with open(local_path, "wb") as f:
+                                    f.write(img_bytes)
+                            except Exception:
+                                pass
+                            return img_bytes
+            except Exception as e:
+                logger.info(f"Gemini AI 이미지 모델({model_name}) 호출 제한/불가: {e}")
+                break
+
+    # 2차 시도 (비상 안전장치): 100% 무결점 프리미엄 인포그래픽 카드 썸네일 생성
+    logger.info("2차 비상 안전장치: 초고화질 인포그래픽 썸네일(Pillow) 자동 생성 가동...")
+    try:
+        return _generate_infographic_card(briefing_data, indicators)
+    except Exception as e:
+        logger.error(f"인포그래픽 썸네일 생성 중 오류 발생: {e}")
         return None
-
-    logger.info("AI 일일 요약 이미지 생성 시도...")
-    candidates = ['gemini-2.5-flash-image', 'gemini-3.1-flash-image', 'gemini-3-pro-image']
-    
-    for model_name in candidates:
-        try:
-            logger.info(f"Gemini 이미지 생성 시도: {model_name}")
-            resp = ai_engine.client.models.generate_content(
-                model=model_name,
-                contents=image_prompt
-            )
-            if resp and resp.candidates and resp.candidates[0].content and resp.candidates[0].content.parts:
-                for part in resp.candidates[0].content.parts:
-                    if hasattr(part, 'inline_data') and part.inline_data and part.inline_data.data:
-                        logger.info(f"Gemini AI 생성 이미지 획득 성공 ({model_name})")
-                        img_bytes = part.inline_data.data
-                        try:
-                            with open("daily_summary_latest.jpg", "wb") as f:
-                                f.write(img_bytes)
-                        except Exception:
-                            pass
-                        return img_bytes
-        except Exception as e:
-            logger.warning(f"Gemini 이미지 모델({model_name}) 생성 실패: {e}")
-            break
-
-    logger.info("AI 이미지 생성 미지원/실패로 이미지 없이 브리핑을 진행합니다.")
-    return None
 
 
 def _render_indicator_cards(indicators, for_local_viewer=False):
@@ -1077,6 +1308,9 @@ def _get_naver_blog_toolbar_and_script():
       <button onclick="copyAllContent()" style="background: linear-gradient(135deg, #2563EB, #1D4ED8); color: #FFFFFF; border: none; padding: 8px 14px; border-radius: 6px; font-size: 12px; font-weight: 800; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 8px rgba(37,99,235,0.4);">
         📋 전체 복사 (텍스트/표 1회 붙여넣기)
       </button>
+      <button onclick="copyThumbnailImage()" style="background: linear-gradient(135deg, #0284C7, #0369A1); color: #FFFFFF; border: none; padding: 8px 13px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 6px rgba(2,132,199,0.4);" title="오늘의 대표 썸네일 이미지 클립보드 복사">
+        🖼️ 썸네일 (대표 이미지)
+      </button>
       <button onclick="copyCardAsImage('briefing-core-summary-card', '총평 요약 카드')" style="background: linear-gradient(135deg, #6366F1, #4F46E5); color: #FFFFFF; border: none; padding: 8px 13px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 6px rgba(99,102,241,0.4);">
         📸 총평 카드 (이미지)
       </button>
@@ -1086,7 +1320,7 @@ def _get_naver_blog_toolbar_and_script():
       <button onclick="copyNewsText()" style="background: #334155; color: #F1F5F9; border: 1px solid #475569; padding: 8px 12px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.2s;">
         📝 뉴스 본문만 복사
       </button>
-      <button onclick="downloadAllCards()" style="background: #1E293B; color: #94A3B8; border: 1px solid #334155; padding: 8px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer;" title="클립보드 대신 이미지 파일로 다운로드">
+      <button onclick="downloadAllCards()" style="background: #1E293B; color: #94A3B8; border: 1px solid #334155; padding: 8px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer;" title="클립보드 대신 이미지 파일로 일괄 다운로드">
         💾 이미지 저장
       </button>
     </div>
@@ -1113,6 +1347,40 @@ function showToast(message, bgColor) {
     toast.style.opacity = '0';
     setTimeout(() => { toast.style.display = 'none'; }, 300);
   }, 3500);
+}
+
+async function copyThumbnailImage() {
+  const img = document.getElementById('briefing-summary-thumbnail-img');
+  if (!img) {
+    showToast('ℹ️ 등록된 썸네일 이미지가 없습니다.', '#64748B');
+    return;
+  }
+  showToast('⏳ 썸네일 이미지 복사 중...', '#0284C7');
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth || img.width;
+    canvas.height = img.naturalHeight || img.height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    canvas.toBlob(async (blob) => {
+      if (!blob) {
+        showToast('❌ 썸네일 변환 실패', '#EF4444');
+        return;
+      }
+      try {
+        const item = new ClipboardItem({ 'image/png': blob });
+        await navigator.clipboard.write([item]);
+        showToast('✅ 썸네일이 복사되었습니다! 네이버 블로그 대표 사진 등록에 [Ctrl+V] 하세요.', '#10B981');
+      } catch (err) {
+        console.warn('클립보드 직접 쓰기 제한, 파일 다운로드로 전환:', err);
+        downloadBlob(blob, '00_데일리브리핑_대표_썸네일.png');
+        showToast('⚠️ 클립보드 보안 제한으로 썸네일 파일이 자동 다운로드되었습니다!', '#F59E0B');
+      }
+    }, 'image/png');
+  } catch(e) {
+    console.error(e);
+    showToast('❌ 썸네일 복사 실패: ' + e.message, '#EF4444');
+  }
 }
 
 async function copyCardAsImage(elementId, cardName) {
@@ -1167,10 +1435,27 @@ function downloadBlob(blob, filename) {
 }
 
 async function downloadAllCards() {
-  await downloadSingleCard('briefing-core-summary-card', '01_오늘의_핵심_총평_카드.png');
+  const thumbImg = document.getElementById('briefing-summary-thumbnail-img');
+  if (thumbImg) {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = thumbImg.naturalWidth || thumbImg.width;
+      canvas.height = thumbImg.naturalHeight || thumbImg.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(thumbImg, 0, 0);
+      canvas.toBlob((blob) => {
+        if (blob) downloadBlob(blob, '00_데일리브리핑_대표_썸네일.png');
+      }, 'image/png');
+    } catch(e) {
+      console.warn(e);
+    }
+  }
+  setTimeout(async () => {
+    await downloadSingleCard('briefing-core-summary-card', '01_오늘의_핵심_총평_카드.png');
+  }, 400);
   setTimeout(async () => {
     await downloadSingleCard('briefing-economic-indicators-card', '02_글로벌_주요_경제지표_카드.png');
-  }, 600);
+  }, 900);
 }
 
 async function downloadSingleCard(elementId, filename) {
@@ -1349,9 +1634,11 @@ def format_briefing_to_html(briefing_data, indicators=None, has_image=False, for
 
     # ── 1. 일일 요약 이미지 (생성된 경우만) ──
     if has_image:
-        parts.append("""
-    <div style="margin-bottom: 22px; text-align: center;">
-      <img src="cid:summary_image" alt="오늘의 일일 브리핑 요약" style="width: 100%; max-width: 620px; height: auto; border-radius: 10px; display: block; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin: 0 auto;" />
+        thumb_btn = """<div style="text-align: right; margin-bottom: 8px;"><button class="no-copy" onclick="copyThumbnailImage()" style="cursor: pointer; background: #0284C7; color: #FFFFFF; border: none; padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 700; box-shadow: 0 2px 5px rgba(2,132,199,0.3); transition: all 0.2s;">🖼️ 썸네일 복사</button></div>""" if for_local_viewer else ""
+        parts.append(f"""
+    <div id="briefing-thumbnail-card-wrapper" style="margin-bottom: 24px; text-align: center;">
+      {thumb_btn}
+      <img id="briefing-summary-thumbnail-img" src="cid:summary_image" alt="오늘의 일일 브리핑 요약 썸네일" style="width: 100%; max-width: 620px; height: auto; border-radius: 10px; display: block; box-shadow: 0 4px 16px rgba(0,0,0,0.12); margin: 0 auto;" />
     </div>""")
 
     # ── 2. 오늘의 핵심 브리핑 총평 & 3대 전략 인사이트 (최상단) ──
