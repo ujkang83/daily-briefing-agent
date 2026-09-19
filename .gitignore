@@ -1,9 +1,10 @@
-.env
-AppPW.txt
+.env*
+AppPW*
 __pycache__/
 *.pyc
-*_backup_*.py
+*_backup_*
 *_backup_*.*
 *.bak
 daily_summary_latest.jpg
 *.log
+

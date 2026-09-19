@@ -359,8 +359,14 @@ def categorize_article(title="", description="", keyword=""):
     if any(k in text for k in tech_kw):
         return "AX · RX · 디지털 트윈 & 로보틱스"
 
-    # 5. 주요 기업 동향 (기업 채용, 신사업, 실적, M&A 등)
-    corp_kw = ["실적", "영업이익", "매출", "m&a", "인수", "투자", "채용", "공채", "신입", "상장", "공시", "현대차", "기아", "삼성전자", "sk하이닉스", "lg", "사업 개편"]
+    # 5. 주요 기업 동향 (기업 채용, 신사업, 실적, M&A, 수주, 바이오, 2차전지, 방산, 원전 등)
+    corp_kw = [
+        "실적", "영업이익", "매출", "m&a", "인수", "투자", "채용", "공채", "신입", "상장", "공시", "수주", "계약", "양산", "공급",
+        "바이오", "제약", "신약", "임상", "헬스케어", "fda", "기술수출",
+        "2차전지", "배터리", "전기차", "양극재", "음극재", "모빌리티",
+        "방산", "우주항공", "조선", "해운", "원전", "smr", "전력", "변압기", "에너지", "신재생",
+        "현대차", "기아", "삼성", "sk", "lg", "포스코", "한화", "hd현대", "사업 개편"
+    ]
     if any(k in text for k in corp_kw):
         return "주요 기업 동향"
 
@@ -583,7 +589,7 @@ def cluster_and_deduplicate_articles(articles, similarity_threshold=0.28):
 # 3단계: 요약 & 분석 (AI Engine — google.genai SDK)
 # ==========================================
 class RelatedCompany(BaseModel):
-    name: str = Field(description="관련 기업명 (예: SK하이닉스, 엔비디아, 현대차, 한화에어로스페이스 등)")
+    name: str = Field(description="관련 기업명 (예: 바이오, 2차전지, 모빌리티, 방산, 친환경/원전, 반도체 등 다양한 유망 산업군의 핵심 기업명)")
     ticker: Optional[str] = Field(default="", description="종목 코드 또는 글로벌 티커 (예: 000660, NVDA, 비상장 등)")
     relevance: str = Field(description="해당 기업이 이 이슈/정책/기술과 왜 직접적으로 관련 있는지, 실질적인 수혜/리스크/비즈니스 연관성을 1~2문장으로 명확히 분석")
 
@@ -604,7 +610,7 @@ class DailyBriefing(BaseModel):
     title: str = Field(description="브리핑 전체 제목 (예: 2026년 9월 7일 모닝 인텔리전스 리포트)")
     daily_summary: str = Field(description="오늘 글로벌 시장과 산업 전체를 관통하는 핵심 총평 단 1문장 (최상단 하이라이트)")
     executive_insights: List[str] = Field(description="오늘 하루 전체 뉴스를 종합 분석하여 도출한 3대 핵심 전략적 관전 포인트 (Executive Strategic Insights 3개 항목)")
-    key_watchlist_companies: List[str] = Field(default_factory=list, description="오늘 브리핑 전체에서 가장 주목해야 할 핵심 관련 기업 3~5개 이름 (예: ['SK하이닉스', '엔비디아', '현대차'])")
+    key_watchlist_companies: List[str] = Field(default_factory=list, description="오늘 브리핑 전체에서 가장 주목해야 할 핵심 관련 기업 3~5개 이름 (특정 대기업에 치우치지 않고 서로 다른 전략 산업 분야의 대표 기업들을 골고루 선정)")
     image_prompt: Optional[str] = Field(default="", description="오늘의 핵심 테마를 표현하는 영문 이미지 생성 프롬프트")
     sections: List[BriefingSection]
     closing_comment: Optional[str] = Field(default="", description="전문가적 관점의 향후 관전 포인트 및 마무리 코멘트")
@@ -705,7 +711,7 @@ class AIEngine:
 [카테고리 분류 규칙]
 반드시 다음 6개 카테고리를 모두 포함하여 작성하세요:
 1. "거시 경제 & 주요 지표" - 경제, 금융, 환율, 주식시장, 금리, 부동산, 물가, 통화정책 등 주요 경제 기사 (경제 지표 요약 외에도 실질적인 경제 관련 뉴스 기사 다수 포함)
-2. "주요 기업 동향" - 기업 투자, M&A, 실적 발표, 신사업, 경영 전략, 대규모 채용 관련(해외 IT 빅테크 및 국내 삼성, SK, 현대차, 기아, LG 그룹 등 주요 기업)
+2. "주요 기업 동향" - 미래 유망 산업(AI·반도체, 2차전지·모빌리티, 바이오·헬스케어, 방산·우주항공·조선, 원전·전력인프라·친환경 등) 전반의 기업 실적, 대규모 수주, M&A, 투자, 신기술 상용화 및 경영 전략
 3. "AX · RX · 디지털 트윈 & 로보틱스" - AI, 로봇, 디지털 트윈, 자동화, 기술 혁신, 신기술 적용 사례 관련
 4. "국제 정세" - 해외 정치, 외교, 무역, 지정학적 이슈 관련
 5. "국내 정치" - 국내 정책, 입법, 선거, 주요 정치 현안 관련
@@ -719,8 +725,9 @@ class AIEngine:
 2. ★상투적이고 무의미한 표현 절대 금지★:
    - "기대된다", "주목된다", "관심이 쏠린다", "경쟁력 강화가 예상된다", "귀추가 주목된다" 같은 진부한 클리셰 문구는 절대 쓰지 마십시오.
    - 대신 "원인 -> 구조적 메커니즘 -> 밸류체인/가격/실적에 미치는 구체적 영향"의 인과관계를 논리적으로 기술하십시오.
-3. ★관련 기업 분석(related_companies) 근거 엄격 적용 (억지 작성 절대 금지)★:
+3. ★관련 기업 분석(related_companies) 근거 엄격 적용 및 산업 다변화 원칙★:
    - 각 기사 항목마다 해당 이슈와 **직접적이고 명확하게 연관된 기업**(실적 발표, M&A, 주요 공급망 계약, 수혜/피해 인과관계가 명확한 기업)이 있는 경우에만 작성하십시오.
+   - **특정 대기업(삼성, SK 등)이나 IT 테마에만 치우치지 말고, 바이오/제약, 2차전지, 모빌리티, 방산, 친환경/원전 등 다양한 산업군에서 실질적인 수혜나 수주를 거둔 유망 기업들을 적극 발굴하여 균형 있게 기술하십시오.**
    - **연관성의 근거가 약하거나 모호하거나 억지스러운 경우, 절대로 억지로 끼워 넣지 말고 반드시 빈 리스트 (`[]`)로 남겨두십시오.** (억지 밸류체인 연결 절대 금지)
 4. ★팩트 검증 및 구시대 정보 / 소속팀·선수 오류 절대 금지★:
    - 제공된 최신 뉴스 기사에 기록된 명확한 팩트에 기반하여 작성하십시오.
@@ -732,7 +739,7 @@ class AIEngine:
    - `source_url`과 `source_name`은 파이썬 코드가 `article_id`를 기반으로 원문 데이터베이스에서 100% 정확하게 자동 주입하므로, 빈 문자열("")로 두셔도 됩니다.
 6. ★최상단 3대 핵심 전략 인사이트(executive_insights) & 주목 기업(key_watchlist_companies)★:
    - `executive_insights`는 오늘 하루 뉴스 전체를 가로지르는 3대 거시적/산업적 관전 포인트(Trend & Structural Shift)를 전문 애널리스트 관점에서 깊이 있게 제시하십시오.
-   - `key_watchlist_companies`는 오늘 브리핑 전체에서 가장 핵심적으로 영향받는 대표 기업 3~5개 이름을 배열로 제시하십시오. (연관성이 확실한 기업만 도출)
+   - `key_watchlist_companies`는 오늘 브리핑 전체에서 가장 핵심적으로 영향받는 대표 기업 3~5개 이름을 배열로 제시하되, **특정 1~2개 대기업이나 단일 섹터에 편중되지 않도록 서로 다른 전략 산업 분야(예: 바이오, 2차전지, 방산, 반도체, 에너지 등)의 유망 기업들을 다채롭고 균형 있게 선정**하십시오. (연관성이 확실한 기업만 도출)
 7. 모든 카테고리(6개 분야)가 결과에 반드시 포함되어야 하며, 각 카테고리마다 아이템이 최소 3개 이상 작성되어야 합니다.
    - "거시 경제 & 주요 지표" 카테고리는 제공된 경제 지표 요약(첫 번째 아이템) 외에도 금리, 환율, 주식시장, 부동산, 물가, 통화정책 등 실질적인 경제 기사를 최소 3개 이상 추가하여 총 4개 이상의 아이템으로 구성하세요.
    - "스포츠" 카테고리:
@@ -2360,7 +2367,7 @@ def main():
     gemini_api_key = _clean_env_val(os.environ.get("GEMINI_API_KEY"))
     naver_client_id = _clean_env_val(os.environ.get("NAVER_CLIENT_ID"))
     naver_client_secret = _clean_env_val(os.environ.get("NAVER_CLIENT_SECRET"))
-    keywords_env = _clean_env_val(os.environ.get("NEWS_KEYWORDS")) or "인공지능, 빅테크, IT 트렌드, 거시 경제, 금융 증시, 금리 환율 부동산, 국제 정세, 국내 정치, KBO 프로야구, 해외축구 손흥민 EPL, 메이저리그 MLB"
+    keywords_env = _clean_env_val(os.environ.get("NEWS_KEYWORDS")) or "거시 경제 증시, 금리 환율 부동산, 인공지능 AI 반도체, 미래 모빌리티 2차전지 배터리, 바이오 제약 신약 헬스케어, 방산 우주항공 조선 수주, 원전 SMR 신재생에너지 전력인프라, 국제 정세 외교, 국내 정치, 스포츠 경기 결과 KBO 손흥민"
     keywords = [k.strip() for k in keywords_env.split(",") if k.strip()]
 
     slack_webhook = _clean_env_val(os.environ.get("SLACK_WEBHOOK_URL"))
