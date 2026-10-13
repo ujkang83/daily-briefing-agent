@@ -215,6 +215,10 @@ def is_valid_article_url(url, title="", description="", source_name=""):
             if domain.lower() in netloc or domain.lower() in (title + description).lower():
                 return False
 
+        # 검색 대체 링크 및 구글 뉴스 링크는 항상 유효한 기사 링크로 통과
+        if "search.naver.com" in netloc or "news.google.com" in netloc:
+            return True
+
         # 1. 경로(path)가 비어있거나 index/home/main 등 단순 메인 페이지인 경우
         if not path or path.lower() in ["", "index.html", "index.htm", "index.php", "home", "main", "default.aspx"]:
             if not any(param in query for param in ["aid=", "article_id=", "idxno=", "id=", "no=", "gno="]):
@@ -609,7 +613,7 @@ class BriefingSection(BaseModel):
 class DailyBriefing(BaseModel):
     title: str = Field(description="브리핑 전체 제목 (예: 2026년 9월 7일 모닝 인텔리전스 리포트)")
     daily_summary: str = Field(description="오늘 글로벌 시장과 산업 전체를 관통하는 핵심 총평 단 1문장 (최상단 하이라이트)")
-    executive_insights: List[str] = Field(description="오늘 하루 전체 뉴스를 종합 분석하여 도출한 3대 핵심 전략적 관전 포인트 (Executive Strategic Insights 3개 항목)")
+    executive_insights: List[str] = Field(description="오늘 하루 전체 뉴스를 종합 분석하여 도출한 3대 핵심 전략적 관전 포인트 (Executive Strategic Insights 3개 항목, 반드시 '핵심 헤드라인: 1~2문장의 심층 분석(공백 포함 65~85자)' 형식)")
     key_watchlist_companies: List[str] = Field(default_factory=list, description="오늘 브리핑 전체에서 가장 주목해야 할 핵심 관련 기업 3~5개 이름 (특정 대기업에 치우치지 않고 서로 다른 전략 산업 분야의 대표 기업들을 골고루 선정)")
     image_prompt: Optional[str] = Field(default="", description="오늘의 핵심 테마를 표현하는 영문 이미지 생성 프롬프트")
     sections: List[BriefingSection]
@@ -738,7 +742,7 @@ class AIEngine:
    - 절대 가짜 ID나 존재하지 않는 번호를 지어내지 말고, 수집 기사 목록에 표시된 [ART-XX] 코드를 그대로 사용하십시오.
    - `source_url`과 `source_name`은 파이썬 코드가 `article_id`를 기반으로 원문 데이터베이스에서 100% 정확하게 자동 주입하므로, 빈 문자열("")로 두셔도 됩니다.
 6. ★최상단 3대 핵심 전략 인사이트(executive_insights) & 주목 기업(key_watchlist_companies)★:
-   - `executive_insights`는 오늘 하루 뉴스 전체를 가로지르는 3대 거시적/산업적 관전 포인트(Trend & Structural Shift)를 전문 애널리스트 관점에서 깊이 있게 제시하십시오.
+   - `executive_insights`는 오늘 하루 뉴스 전체를 가로지르는 3대 거시적/산업적 관전 포인트(Trend & Structural Shift)를 전문 애널리스트 관점에서 깊이 있게 제시하십시오. 반드시 '핵심 헤드라인: 1~2문장의 심층 분석 및 파급효과' 형식(콜론 구분)으로 작성하되, **설명 문장은 공백 포함 65~85자 내외로 명료하게 작성**하여 썸네일 인포그래픽 카드의 2줄 공간 안에 말줄임표 없이 100% 온전하게 안착되도록 하십시오.
    - `key_watchlist_companies`는 오늘 브리핑 전체에서 가장 핵심적으로 영향받는 대표 기업 3~5개 이름을 배열로 제시하되, **특정 1~2개 대기업이나 단일 섹터에 편중되지 않도록 서로 다른 전략 산업 분야(예: 바이오, 2차전지, 방산, 반도체, 에너지 등)의 유망 기업들을 다채롭고 균형 있게 선정**하십시오. (연관성이 확실한 기업만 도출)
 7. 모든 카테고리(6개 분야)가 결과에 반드시 포함되어야 하며, 각 카테고리마다 아이템이 최소 3개 이상 작성되어야 합니다.
    - "거시 경제 & 주요 지표" 카테고리는 제공된 경제 지표 요약(첫 번째 아이템) 외에도 금리, 환율, 주식시장, 부동산, 물가, 통화정책 등 실질적인 경제 기사를 최소 3개 이상 추가하여 총 4개 이상의 아이템으로 구성하세요.
@@ -760,9 +764,9 @@ class AIEngine:
   "title": "String (브리핑 전체 제목)",
   "daily_summary": "String (오늘 브리핑 전체를 관통하는 핵심 총평 1문장)",
   "executive_insights": [
-    "String (오늘의 1번째 핵심 전략 인사이트 - 맥락과 파급효과)",
-    "String (오늘의 2번째 핵심 전략 인사이트 - 밸류체인 및 시장 변화)",
-    "String (오늘의 3번째 핵심 전략 인사이트 - 향후 전개 시나리오)"
+    "String ('1번째 핵심 헤드라인: 맥락과 시장 파급효과 분석 (공백 포함 65~85자)' 형식)",
+    "String ('2번째 핵심 헤드라인: 산업 밸류체인 및 기업 영향 분석 (공백 포함 65~85자)' 형식)",
+    "String ('3번째 핵심 헤드라인: 거시 정책 및 향후 전개 시나리오 (공백 포함 65~85자)' 형식)"
   ],
   "key_watchlist_companies": ["String (핵심 주목 기업 1)", "String (핵심 주목 기업 2)", "String (핵심 주목 기업 3)"],
   "image_prompt": "String (오늘의 테마를 표현하는 영문 이미지 생성 프롬프트)",
@@ -937,64 +941,150 @@ def _get_font(size, bold=False):
     return ImageFont.load_default()
 
 
+def _wrap_words(text, font, max_width, draw):
+    """단어(띄어쓰기) 단위로 자연스럽게 줄바꿈하는 스마트 래퍼 (단어 중간 쪼개짐 원천 방지)"""
+    words = text.split()
+    if not words:
+        return []
+    
+    lines = []
+    current_line = []
+    
+    for word in words:
+        test_line = " ".join(current_line + [word])
+        bbox = draw.textbbox((0, 0), test_line, font=font)
+        w = bbox[2] - bbox[0]
+        if w <= max_width:
+            current_line.append(word)
+        else:
+            if current_line:
+                lines.append(" ".join(current_line))
+                current_line = [word]
+            else:
+                lines.append(word)
+                current_line = []
+    if current_line:
+        lines.append(" ".join(current_line))
+    return lines
+
+
+def _infer_topic_tag(text, index):
+    """텍스트 내용을 정밀 분석하여 세련된 토픽 뱃지 키워드 및 고유 테마 컬러 도출"""
+    t = text.lower()
+    if any(k in t for k in ["배터리", "2차전지", "전고체", "에코프로", "삼성sdi"]):
+        return "신기술·배터리", "#06B6D4", "#083344"
+    elif any(k in t for k in ["로봇", "로보틱스", "피지컬", "자율주행", "모빌리티", "sdv"]):
+        return "로봇·피지컬AI", "#0EA5E9", "#0C4A6E"
+    elif any(k in t for k in ["반도체", "ai", "인공지능", "엔비디아", "나스닥", "hbm"]):
+        return "AI·반도체", "#818CF8", "#1E1B4B"
+    elif any(k in t for k in ["지정학", "lng", "유가", "에너지", "국정감사", "외교", "대외", "원자재"]):
+        return "지정학·에너지", "#F59E0B", "#451A03"
+    elif any(k in t for k in ["환율", "금리", "fed", "fomc", "인플레", "유동성", "코스피", "증시", "국채"]):
+        return "글로벌 매크로", "#10B981", "#064E3B"
+    elif any(k in t for k in ["바이오", "제약", "임상", "헬스케어"]):
+        return "바이오·헬스", "#F43F5E", "#4C0519"
+    elif any(k in t for k in ["방산", "우주", "항공"]):
+        return "방산·우주", "#A855F7", "#3B0764"
+    
+    defaults = [
+        ("AI·전략산업", "#818CF8", "#1E1B4B"),
+        ("신기술·모빌리티", "#06B6D4", "#083344"),
+        ("글로벌 매크로", "#10B981", "#064E3B")
+    ]
+    return defaults[index % len(defaults)]
+
+
 def _generate_infographic_card(briefing_data, indicators=None):
     """
-    100% 무결점 프리미엄 일일 요약 인포그래픽 썸네일(1200x630)을 생성합니다.
-    Pillow 그래픽 엔진을 기반으로 날짜, 3대 핵심 이슈, 주요 지표를 렌더링합니다.
+    고대비 모던 매거진 스타일 100% 무결점 프리미엄 일일 요약 인포그래픽 썸네일(1200x630)을 생성합니다.
+    1. 중복 상투어 없는 볼드 핵심 헤드라인
+    2. 어절 단위 스마트 줄바꿈 (글자 쪼개짐 제로)
+    3. 정돈된 [토픽 뱃지 + 헤드라인 + 서브 요약] 3단 레이아웃
+    4. 경제 지표 등락률 및 등락 화살표(▲/▼) 고대비 시인성 극대화
     """
     width, height = 1200, 630
-    img = Image.new("RGB", (width, height), "#0B0F19")
+    img = Image.new("RGB", (width, height), "#080B14")
     draw = ImageDraw.Draw(img)
 
-    # 1. 배경 그라데이션 (다크 네이비 -> 다크 슬레이트)
+    # 1. 배경 미세 그라데이션 (하이엔드 다크 네이비 -> 딥 슬레이트)
     for y in range(height):
         ratio = y / height
-        r = int(11 * (1 - ratio) + 22 * ratio)
-        g = int(15 * (1 - ratio) + 30 * ratio)
-        b = int(25 * (1 - ratio) + 48 * ratio)
+        r = int(9 * (1 - ratio) + 16 * ratio)
+        g = int(13 * (1 - ratio) + 24 * ratio)
+        b = int(26 * (1 - ratio) + 45 * ratio)
         draw.line([(0, y), (width, y)], fill=(r, g, b))
 
-    # 2. 상단 네온 액센트 라인 (인디고 -> 시안 그라데이션)
+    # 2. 상단 네온 액센트 라인 (인디고 -> 시안 -> 에메랄드 그라데이션)
     for x in range(width):
         rx = x / width
-        ar = int(99 * (1 - rx) + 56 * rx)
-        ag = int(102 * (1 - rx) + 189 * rx)
-        ab = int(241 * (1 - rx) + 248 * rx)
-        draw.line([(x, 0), (x, 5)], fill=(ar, ag, ab))
+        if rx < 0.5:
+            t = rx / 0.5
+            r = int(99 * (1 - t) + 56 * t)
+            g = int(102 * (1 - t) + 189 * t)
+            b = int(241 * (1 - t) + 248 * t)
+        else:
+            t = (rx - 0.5) / 0.5
+            r = int(56 * (1 - t) + 16 * t)
+            g = int(189 * (1 - t) + 185 * t)
+            b = int(248 * (1 - t) + 129 * t)
+        draw.line([(x, 0), (x, 5)], fill=(r, g, b))
 
     # 3. 폰트 로드
-    font_badge = _get_font(18, bold=True)
-    font_date = _get_font(20, bold=False)
-    font_title = _get_font(38, bold=True)
-    font_card_num = _get_font(22, bold=True)
-    font_card_text = _get_font(21, bold=True)
-    font_card_sub = _get_font(16, bold=False)
-    font_ind_label = _get_font(16, bold=False)
-    font_ind_val = _get_font(18, bold=True)
-    font_footer = _get_font(15, bold=False)
+    font_badge = _get_font(15, bold=True)
+    font_date = _get_font(18, bold=False)
+    font_title = _get_font(42, bold=True)
+    font_card_num = _get_font(20, bold=True)
+    font_tag = _get_font(13, bold=True)
+    font_card_head = _get_font(21, bold=True)
+    font_card_sub = _get_font(15, bold=False)
+    font_ind_label = _get_font(15, bold=False)
+    font_ind_val = _get_font(19, bold=True)
+    font_ind_pct = _get_font(15, bold=True)
+    font_footer = _get_font(14, bold=False)
 
     # 4. 헤더 뱃지 및 날짜
-    badge_text = "DAILY INTELLIGENCE BRIEFING"
-    badge_bbox = draw.textbbox((0, 0), badge_text, font=font_badge)
-    badge_w = badge_bbox[2] - badge_bbox[0]
-    badge_h = badge_bbox[3] - badge_bbox[1]
-    
-    bx, by = 60, 36
-    draw.rounded_rectangle([bx, by, bx + badge_w + 24, by + badge_h + 12], radius=12, fill="#1E1B4B", outline="#4F46E5", width=1)
-    draw.text((bx + 12, by + 6), badge_text, font=font_badge, fill="#A5B4FC")
+    badge_text = "◈ DAILY STRATEGIC INTELLIGENCE"
+    bx, by = 60, 30
+    bbox = draw.textbbox((0, 0), badge_text, font=font_badge)
+    bw, bh = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    draw.rounded_rectangle([bx, by, bx + bw + 22, by + bh + 12], radius=10, fill="#131B33", outline="#3B82F6", width=1)
+    draw.text((bx + 11, by + 5), badge_text, font=font_badge, fill="#38BDF8")
 
     today_str = datetime.now(KST).strftime("%Y.%m.%d (%a)").replace("Mon", "월").replace("Tue", "화").replace("Wed", "수").replace("Thu", "목").replace("Fri", "금").replace("Sat", "토").replace("Sun", "일")
     date_bbox = draw.textbbox((0, 0), today_str, font=font_date)
-    draw.text((width - 60 - (date_bbox[2] - date_bbox[0]), 42), today_str, font=font_date, fill="#94A3B8")
+    draw.text((width - 60 - (date_bbox[2] - date_bbox[0]), 34), today_str, font=font_date, fill="#94A3B8")
 
-    # 5. 메인 타이틀
+    # 5. 메인 타이틀 정제 (상투적 날짜/모닝 브리핑 문구 제거 -> 순수 핵심 헤드라인 강조)
     raw_title = briefing_data.get("title", "오늘의 글로벌 경제 & 산업 핵심 브리핑") if briefing_data else "오늘의 글로벌 경제 & 산업 핵심 브리핑"
-    clean_title = re.sub(r'^[📢📬✨]\s*', '', raw_title).strip()
-    if len(clean_title) > 36:
-        clean_title = clean_title[:34] + "..."
-    draw.text((60, 88), clean_title, font=font_title, fill="#FFFFFF")
+    clean = re.sub(r'^[📢📬✨💡⚡\s]+', '', raw_title).strip()
+    
+    extracted_title = clean
+    if ":" in clean:
+        prefix, topic = clean.split(":", 1)
+        if re.search(r'\d+월|\d+일|모닝|데일리|브리핑|리포트', prefix):
+            extracted_title = topic.strip()
+    elif " - " in clean:
+        prefix, topic = clean.split(" - ", 1)
+        if re.search(r'\d+월|\d+일|모닝|데일리|브리핑|리포트', prefix):
+            extracted_title = topic.strip()
+    else:
+        extracted_title = re.sub(r'^\d{4}년\s*\d{1,2}월\s*\d{1,2}일\s*', '', clean).strip()
+        extracted_title = re.sub(r'^(모닝|데일리)\s*(인텔리전스)?\s*(리포트|브리핑)[:\s-]*', '', extracted_title).strip()
+        if not extracted_title:
+            extracted_title = clean
 
-    # 6. 핵심 3대 하이라이트 추출
+    title_lines = _wrap_words(extracted_title, font_title, 1080, draw)
+    if len(title_lines) == 1:
+        draw.text((60, 82), title_lines[0], font=font_title, fill="#FFFFFF")
+    else:
+        if len(title_lines) > 2:
+            title_lines = title_lines[:2]
+            title_lines[1] += "..."
+        font_title_compact = _get_font(34, bold=True)
+        draw.text((60, 72), title_lines[0], font=font_title_compact, fill="#FFFFFF")
+        draw.text((60, 114), title_lines[1], font=font_title_compact, fill="#38BDF8")
+
+    # 6. 핵심 3대 하이라이트 카드 렌더링
     items = []
     if briefing_data:
         insights = briefing_data.get("executive_insights", [])
@@ -1007,15 +1097,12 @@ def _generate_infographic_card(briefing_data, indicators=None):
                     ins_clean = re.sub(r'^[0-9]+[.\-)]\s*', '', ins).strip()
                     if ":" in ins_clean:
                         parts = ins_clean.split(":", 1)
-                        h = parts[0].strip()
-                        s = parts[1].strip()
+                        h, s = parts[0].strip(), parts[1].strip()
                     elif " - " in ins_clean:
                         parts = ins_clean.split(" - ", 1)
-                        h = parts[0].strip()
-                        s = parts[1].strip()
+                        h, s = parts[0].strip(), parts[1].strip()
                     else:
-                        h = ins_clean
-                        s = ""
+                        h, s = ins_clean, ""
                 else:
                     h, s = str(ins), ""
                 if h:
@@ -1041,7 +1128,6 @@ def _generate_infographic_card(briefing_data, indicators=None):
                 if len(items) >= 3:
                     break
 
-    # 기본 폴백 항목
     fallback_items = [
         ("AI 인프라 투자 및 빅테크 밸류체인 재편", "글로벌 기술주 자금 흐름 및 실적 기반 자산으로의 이동 가속"),
         ("글로벌 거시경제 및 주요국 통화정책 동향", "주요 경제 지표 변동성 및 안전자산 선호 심리 확산"),
@@ -1050,44 +1136,80 @@ def _generate_infographic_card(briefing_data, indicators=None):
     while len(items) < 3:
         items.append(fallback_items[len(items)])
 
-    card_y = 155
-    card_h = 92
+    card_y = 154
+    card_h = 98
     card_w = 1080
-    card_gap = 14
+    card_gap = 10
+    tag_box_w = 114
+    text_x = 258
+    max_text_w = (60 + card_w - 24) - text_x
 
     for i, (head, sub) in enumerate(items[:3]):
         cy = card_y + i * (card_h + card_gap)
-        draw.rounded_rectangle([60, cy, 60 + card_w, cy + card_h], radius=12, fill="#141E33", outline="#253554", width=1)
+        draw.rounded_rectangle([60, cy, 60 + card_w, cy + card_h], radius=12, fill="#0F172A", outline="#1E293B", width=1)
         
-        accent_color = "#6366F1" if i == 0 else ("#0284C7" if i == 1 else "#0D9488")
-        draw.rounded_rectangle([60, cy, 66, cy + card_h], radius=3, fill=accent_color)
-        
+        tag_name, tag_color, tag_bg = _infer_topic_tag(head + " " + sub, i)
+        draw.rounded_rectangle([60, cy, 65, cy + card_h], radius=2, fill=tag_color)
+
         num_str = f"0{i+1}"
-        draw.text((86, cy + 18), num_str, font=font_card_num, fill=accent_color)
-        
+        draw.text((82, cy + 18), num_str, font=font_card_num, fill=tag_color)
+
+        t_x = 124
+        t_y = cy + 16
+        t_h = 28
+        draw.rounded_rectangle([t_x, t_y, t_x + tag_box_w, t_y + t_h], radius=6, fill=tag_bg, outline=tag_color, width=1)
+        tbbox = draw.textbbox((0, 0), tag_name, font=font_tag)
+        tw = tbbox[2] - tbbox[0]
+        tx_offset = (tag_box_w - tw) // 2
+        draw.text((t_x + tx_offset, t_y + 4), tag_name, font=font_tag, fill=tag_color)
+
         head_clean = re.sub(r'^[⚡🔥💡\s0-9\[\]\-]+', '', head).strip()
         sub_clean = re.sub(r'\s+', ' ', sub).strip()
-        
-        if not sub_clean:
-            if len(head_clean) > 42:
-                line1 = head_clean[:40]
-                line2 = head_clean[40:82] + ("..." if len(head_clean) > 82 else "")
-                draw.text((135, cy + 18), line1, font=font_card_text, fill="#F8FAFC")
-                draw.text((135, cy + 50), line2, font=font_card_sub, fill="#CBD5E1")
-            else:
-                draw.text((135, cy + 32), head_clean, font=font_card_text, fill="#F8FAFC")
+
+        if sub_clean:
+            h_lines = _wrap_words(head_clean, font_card_head, max_text_w, draw)
+            h_disp = h_lines[0] if h_lines else head_clean
+            if len(h_lines) > 1:
+                h_disp += "..."
+            draw.text((text_x, cy + 13), h_disp, font=font_card_head, fill="#F8FAFC")
+
+            s_lines = _wrap_words(sub_clean, font_card_sub, max_text_w, draw)
+            if len(s_lines) == 1:
+                draw.text((text_x, cy + 48), s_lines[0], font=font_card_sub, fill="#CBD5E1")
+            elif len(s_lines) >= 2:
+                draw.text((text_x, cy + 42), s_lines[0], font=font_card_sub, fill="#CBD5E1")
+                s_disp2 = s_lines[1]
+                if len(s_lines) > 2:
+                    while s_disp2 and draw.textbbox((0, 0), s_disp2 + "...", font=font_card_sub)[2] > max_text_w:
+                        s_disp2 = s_disp2[:-1].rstrip()
+                    s_disp2 += "..."
+                draw.text((text_x, cy + 65), s_disp2, font=font_card_sub, fill="#94A3B8")
         else:
-            if len(head_clean) > 42:
-                head_clean = head_clean[:40] + "..."
-            if len(sub_clean) > 58:
-                sub_clean = sub_clean[:56] + "..."
-            draw.text((135, cy + 18), head_clean, font=font_card_text, fill="#F8FAFC")
-            draw.text((135, cy + 52), sub_clean, font=font_card_sub, fill="#94A3B8")
+            all_lines = _wrap_words(head_clean, font_card_head, max_text_w, draw)
+            if len(all_lines) >= 3:
+                draw.text((text_x, cy + 13), all_lines[0], font=font_card_head, fill="#F8FAFC")
+                rem_text = " ".join(all_lines[1:])
+                rem_lines = _wrap_words(rem_text, font_card_sub, max_text_w, draw)
+                disp1 = rem_lines[0] if rem_lines else ""
+                disp2 = rem_lines[1] if len(rem_lines) > 1 else ""
+                if len(rem_lines) > 2:
+                    while disp2 and draw.textbbox((0, 0), disp2 + "...", font=font_card_sub)[2] > max_text_w:
+                        disp2 = disp2[:-1].rstrip()
+                    disp2 += "..."
+                if disp1:
+                    draw.text((text_x, cy + 42), disp1, font=font_card_sub, fill="#CBD5E1")
+                if disp2:
+                    draw.text((text_x, cy + 65), disp2, font=font_card_sub, fill="#94A3B8")
+            elif len(all_lines) == 2:
+                draw.text((text_x, cy + 22), all_lines[0], font=font_card_head, fill="#F8FAFC")
+                draw.text((text_x, cy + 54), all_lines[1], font=font_card_head, fill="#CBD5E1")
+            elif len(all_lines) == 1:
+                draw.text((text_x, cy + 36), all_lines[0], font=font_card_head, fill="#F8FAFC")
 
     # 7. 하단 주요 지표 바
     ind_y = 485
     ind_h = 75
-    draw.rounded_rectangle([60, ind_y, 60 + card_w, ind_y + ind_h], radius=12, fill="#0F172A", outline="#1E293B", width=1)
+    draw.rounded_rectangle([60, ind_y, 60 + card_w, ind_y + ind_h], radius=12, fill="#0B132B", outline="#1E293B", width=1)
     
     ind_samples = []
     if indicators and isinstance(indicators, dict):
@@ -1110,23 +1232,22 @@ def _generate_infographic_card(briefing_data, indicators=None):
                     if len(ind_samples) >= 4:
                         break
 
-    # 지표 데이터가 없거나 부족한 경우의 기본값
     if len(ind_samples) < 4:
         dummy_inds = [
-            ("코스피", {"price": 2650.0, "change": 15.2, "pct": 0.58}),
+            ("코스피 (KOSPI)", {"price": 2650.0, "change": 15.2, "pct": 0.58}),
             ("S&P 500", {"price": 5620.0, "change": 22.4, "pct": 0.40}),
             ("원/달러 환율", {"price": 1380.0, "change": -2.5, "pct": -0.18}),
             ("WTI 유가", {"price": 78.5, "change": 0.8, "pct": 1.03})
         ]
         ind_samples = dummy_inds
 
-    col_w = card_w / len(ind_samples)
+    col_w = card_w / len(ind_samples[:4])
     for idx, (iname, idata) in enumerate(ind_samples[:4]):
         col_x = 60 + idx * col_w
         if idx > 0:
             draw.line([(col_x, ind_y + 12), (col_x, ind_y + ind_h - 12)], fill="#1E293B", width=1)
         
-        draw.text((col_x + 20, ind_y + 16), iname, font=font_ind_label, fill="#94A3B8")
+        draw.text((col_x + 22, ind_y + 14), iname, font=font_ind_label, fill="#94A3B8")
         
         if isinstance(idata, dict):
             price = idata.get("price", 0)
@@ -1140,24 +1261,24 @@ def _generate_infographic_card(briefing_data, indicators=None):
         else:
             price_str = str(price)
             
-        draw.text((col_x + 20, ind_y + 40), price_str, font=font_ind_val, fill="#FFFFFF")
+        draw.text((col_x + 22, ind_y + 39), price_str, font=font_ind_val, fill="#FFFFFF")
         val_w = draw.textbbox((0, 0), price_str, font=font_ind_val)[2]
         
         if change > 0:
-            chg_str = f"+{pct:.2f}%"
-            chg_color = "#EF4444"
+            chg_str = f"▲ +{pct:.2f}%"
+            chg_color = "#F43F5E"
         elif change < 0:
-            chg_str = f"{pct:.2f}%"
-            chg_color = "#3B82F6"
+            chg_str = f"▼ {pct:.2f}%"
+            chg_color = "#38BDF8"
         else:
             chg_str = f"{pct:.2f}%"
             chg_color = "#94A3B8"
             
-        draw.text((col_x + 20 + val_w + 6, ind_y + 42), chg_str, font=font_ind_label, fill=chg_color)
+        draw.text((col_x + 22 + val_w + 10, ind_y + 42), chg_str, font=font_ind_pct, fill=chg_color)
 
     # 8. 푸터 영역
-    draw.text((60, 582), "◈ Morning Strategic Intelligence | Powered by Gemini", font=font_footer, fill="#475569")
-    draw.text((width - 320, 582), "네이버 블로그 & 이메일 데일리 리포트", font=font_footer, fill="#475569")
+    draw.text((60, 584), "◈ Morning Strategic Intelligence | Powered by Gemini", font=font_footer, fill="#475569")
+    draw.text((width - 320, 584), "네이버 블로그 & 이메일 데일리 리포트", font=font_footer, fill="#475569")
 
     # 9. 바이트 변환 및 파일 저장
     buf = io.BytesIO()
@@ -2191,10 +2312,11 @@ def resolve_article_links_by_id(briefing, articles_by_id=None, all_articles=None
     return briefing
 
 
-def verify_urls_liveness(briefing, max_workers=10, timeout=3.0):
+def verify_urls_liveness(briefing, max_workers=10, timeout=4.0):
     """
     브리핑에 포함된 모든 URL(source_url 및 related_articles의 link)을 병렬(ThreadPoolExecutor)로
-    실제 HTTP 응답(200 OK / 리다이렉션)을 검증하여 404/사망 링크 및 메인홈페이지 튕김 링크를 제거합니다.
+    실제 HTTP 응답(200 OK / 리다이렉션)을 검증하여, 정상 기사는 100% 보존하고
+    실제 사망/차단 기사나 누락 기사는 네이버 뉴스 검색 대체 링크를 연결하여 기사 링크 결손(누락)을 0%로 보장합니다.
     """
     if not briefing or "sections" not in briefing:
         return briefing
@@ -2210,71 +2332,87 @@ def verify_urls_liveness(briefing, max_workers=10, timeout=3.0):
                 if ru and ru.startswith("http"):
                     urls_to_check.add(ru)
 
-    if not urls_to_check:
-        return briefing
-
-    logger.info(f"실시간 링크 생존(Liveness) 검증 시작: 총 {len(urls_to_check)}개 고유 URL...")
-
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
     }
 
-    def check_url(url):
-        if "news.google.com" in url:
-            return url, True
-        try:
-            resp = requests.head(url, headers=headers, timeout=timeout, allow_redirects=True)
-            if resp.status_code in [405, 403]:
+    url_status = {}
+    if urls_to_check:
+        logger.info(f"실시간 링크 생존(Liveness) 검증 시작: 총 {len(urls_to_check)}개 고유 URL...")
+
+        def check_url(url):
+            if "news.google.com" in url or "search.naver.com" in url:
+                return url, True
+            try:
+                # 국내 수많은 언론사 CMS(NDSoft 등)가 HEAD 요청에 404/405/403을 반환하므로 GET(stream=True)로 헤더만 안전 검증
                 resp = requests.get(url, headers=headers, timeout=timeout, allow_redirects=True, stream=True)
+                status = resp.status_code
+                final_url = resp.url.lower()
                 resp.close()
 
-            if 200 <= resp.status_code < 400:
-                final_url = resp.url.lower()
-                parsed_final = urllib.parse.urlparse(final_url)
-                final_path = parsed_final.path.strip("/")
-                if not final_path or final_path in ["", "index.html", "index.htm", "main", "home"]:
-                    orig_path = urllib.parse.urlparse(url).path.strip("/")
-                    if orig_path and orig_path not in ["", "index.html", "index.htm", "main", "home"]:
-                        logger.warning(f"기사 삭제 후 메인홈으로 리다이렉트된 링크 감지: {url} -> {final_url}")
-                        return url, False
-                return url, True
-            else:
-                logger.warning(f"사망 링크 감지 (HTTP {resp.status_code}): {url}")
+                if 200 <= status < 400:
+                    parsed_final = urllib.parse.urlparse(final_url)
+                    final_path = parsed_final.path.strip("/")
+                    if not final_path or final_path in ["", "index.html", "index.htm", "main", "home"]:
+                        orig_path = urllib.parse.urlparse(url).path.strip("/")
+                        if orig_path and orig_path not in ["", "index.html", "index.htm", "main", "home"]:
+                            logger.warning(f"기사 삭제 후 메인홈으로 리다이렉트된 링크 감지: {url} -> {final_url}")
+                            return url, False
+                    return url, True
+                else:
+                    logger.warning(f"사망/차단 링크 감지 (HTTP {status}): {url}")
+                    return url, False
+            except Exception as e:
+                logger.warning(f"링크 연결 검증 실패 ({url}): {e}")
                 return url, False
-        except Exception as e:
-            logger.warning(f"링크 연결 검증 실패 ({url}): {e}")
-            return url, False
 
-    url_status = {}
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_url = {executor.submit(check_url, u): u for u in urls_to_check}
-        for future in future_to_url:
-            try:
-                u, is_alive = future.result()
-                url_status[u] = is_alive
-            except Exception:
-                pass
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_url = {executor.submit(check_url, u): u for u in urls_to_check}
+            for future in future_to_url:
+                try:
+                    u, is_alive = future.result()
+                    url_status[u] = is_alive
+                except Exception:
+                    pass
 
-    dead_count = sum(1 for v in url_status.values() if not v)
-    logger.info(f"링크 생존 검증 완료: 정상 {len(url_status)-dead_count}개 / 사망·차단 {dead_count}개")
+        dead_count = sum(1 for v in url_status.values() if not v)
+        logger.info(f"링크 생존 검증 완료: 정상 {len(url_status)-dead_count}개 / 사망·차단 {dead_count}개")
 
-    # 사망 링크 제거 정화
+    # 2. 사망/차단 링크 정화 및 네이버 뉴스 검색 대체 링크 연결 (결손 0% 보장)
     for section in briefing.get("sections", []):
         for item in section.get("items", []):
             src = item.get("source_url", "").strip()
-            if src and not url_status.get(src, True):
-                logger.info(f"사망 링크 정화 제거: '{item.get('headline')}' -> {src}")
-                item["source_url"] = ""
-                item["source_name"] = ""
+            headline = item.get("headline", "").strip() or item.get("title", "").strip()
+
+            # 원본 링크가 살아있으면 정상 보존
+            if src and url_status.get(src, False):
+                pass
+            # 원본 링크가 없거나 사망/차단된 경우 -> 네이버 뉴스 검색 대체 링크 자동 연결
+            elif headline:
+                encoded_query = urllib.parse.quote_plus(headline)
+                fallback_url = f"https://search.naver.com/search.naver?where=news&query={encoded_query}"
+                item["source_url"] = fallback_url
+                if not item.get("source_name"):
+                    item["source_name"] = "네이버 뉴스 검색"
+                if src:
+                    logger.info(f"사망/차단 링크 감지 -> 네이버 뉴스 검색 대체 링크 연결: '{headline}' -> {fallback_url}")
+                else:
+                    logger.info(f"누락 링크 보완 -> 네이버 뉴스 검색 대체 링크 연결: '{headline}' -> {fallback_url}")
 
             live_rels = []
             for r in item.get("related_articles", []):
                 ru = r.get("link", "").strip()
-                if ru and url_status.get(ru, True):
+                rtitle = r.get("title", "").strip()
+                if ru and url_status.get(ru, False):
                     live_rels.append(r)
-                elif ru:
-                    logger.info(f"연관 기사 사망 링크 정화 제거: '{r.get('title')}' -> {ru}")
+                elif ru and rtitle:
+                    encoded_query = urllib.parse.quote_plus(rtitle)
+                    r["link"] = f"https://search.naver.com/search.naver?where=news&query={encoded_query}"
+                    if not r.get("source"):
+                        r["source"] = "네이버 뉴스 검색"
+                    live_rels.append(r)
+                    logger.info(f"연관 기사 사망 링크 감지 -> 네이버 뉴스 검색 대체 링크 연결: '{rtitle}'")
             item["related_articles"] = live_rels
 
     return briefing
