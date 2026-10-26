@@ -13,6 +13,7 @@ import re
 import html
 import json
 import time
+import random
 import logging
 import urllib.parse
 import smtplib
@@ -20,6 +21,7 @@ from datetime import datetime, timezone, timedelta
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
+import email.utils
 
 # 한국 표준시 (KST) 타임존 설정
 KST = timezone(timedelta(hours=9))
@@ -106,6 +108,48 @@ def clean_google_title(title):
     if len(parts) > 1:
         return parts[0].strip()
     return title.strip()
+
+def parse_article_datetime(pub_date_str):
+    """
+    기사의 pub_date(RFC-822 또는 다양한 날짜 문자열)를 파싱하여 timezone-aware datetime 객체(KST/UTC)로 변환합니다.
+    파싱 실패 시 None을 반환합니다.
+    """
+    if not pub_date_str or not isinstance(pub_date_str, str):
+        return None
+    try:
+        dt = email.utils.parsedate_to_datetime(pub_date_str.strip())
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except Exception:
+        pass
+    
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d", "%Y.%m.%d. %H:%M", "%Y.%m.%d %H:%M"):
+        try:
+            naive = datetime.strptime(pub_date_str.strip(), fmt)
+            return naive.replace(tzinfo=KST)
+        except Exception:
+            continue
+    return None
+
+def is_recent_article(pub_date_str, max_hours=36):
+    """
+    기사가 최근 max_hours(기본 36시간) 이내에 발행되었는지 검증합니다.
+    날짜 정보가 아예 없거나 파싱 불가능한 경우 기본적으로 통과시킵니다.
+    """
+    dt = parse_article_datetime(pub_date_str)
+    if not dt:
+        return True
+    now = datetime.now(timezone.utc)
+    diff_hours = (now - dt).total_seconds() / 3600.0
+    if diff_hours > max_hours:
+        return False
+    return True
+
+def get_article_timestamp(art):
+    """기사의 발행 시각을 초 단위 타임스탬프로 반환합니다. (최신순 정렬용)"""
+    dt = parse_article_datetime(art.get("pub_date", ""))
+    return dt.timestamp() if dt else 0
 
 SPAM_KEYWORDS = [
     "토토", "사설토토", "슬롯", "바카라", "카지노", "먹튀", "꽁머니", "파워볼", "홀덤",
@@ -215,8 +259,12 @@ def is_valid_article_url(url, title="", description="", source_name=""):
             if domain.lower() in netloc or domain.lower() in (title + description).lower():
                 return False
 
-        # 검색 대체 링크 및 구글 뉴스 링크는 항상 유효한 기사 링크로 통과
-        if "search.naver.com" in netloc or "news.google.com" in netloc:
+        # 검색 포털 단순 검색 URL 배제 (실제 기사가 아님)
+        if "search.naver.com" in netloc or "search.daum.net" in netloc:
+            return False
+
+        # 구글 뉴스 링크는 유효한 기사 링크로 통과
+        if "news.google.com" in netloc:
             return True
 
         # 1. 경로(path)가 비어있거나 index/home/main 등 단순 메인 페이지인 경우
@@ -266,7 +314,7 @@ def collect_google_news(keyword, limit=20):
     encoded_keyword = urllib.parse.quote(search_query)
     rss_url = f"https://news.google.com/rss/search?q={encoded_keyword}&hl=ko&gl=KR&ceid=KR:ko"
     try:
-        feed = feedparser.parse(rss_url)
+        feed = feedparser.parse(rss_url, agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
         articles = []
         for entry in feed.entries[:limit]:
             link = entry.link
@@ -277,12 +325,17 @@ def collect_google_news(keyword, limit=20):
             if not is_valid_article_url(link, title=title, description=desc, source_name=source_name):
                 continue
 
+            pub_date = entry.get("published", "")
+            # 36시간 초과 과거 기사 원천 배제
+            if pub_date and not is_recent_article(pub_date, max_hours=36):
+                continue
+
             articles.append({
                 "title": title,
                 "link": link,
                 "description": desc or title,
                 "source": source_name,
-                "pub_date": entry.get("published", "")
+                "pub_date": pub_date
             })
         return articles
     except Exception as e:
@@ -314,12 +367,17 @@ def collect_naver_news(keyword, client_id, client_secret, limit=20):
                 if not is_valid_article_url(link, title=title, description=desc, source_name="Naver News"):
                     continue
 
+                pub_date = item.get("pubDate", "")
+                # 36시간 초과 과거 기사 원천 배제
+                if pub_date and not is_recent_article(pub_date, max_hours=36):
+                    continue
+
                 articles.append({
                     "title": title,
                     "link": link,
                     "description": desc or title,
                     "source": get_media_name_from_url(link, "Naver News"),
-                    "pub_date": item.get("pubDate", "")
+                    "pub_date": pub_date
                 })
             return articles
         return []
@@ -383,7 +441,7 @@ def categorize_article(title="", description="", keyword=""):
 
 
 def select_balanced_articles_per_category(articles, max_per_cat=8):
-    """6대 카테고리별로 고르게 기사를 선별하여 특정 분야의 기사 기근이나 편중을 방지합니다."""
+    """6대 카테고리별로 고르게 기사를 선별하되, 가장 최근에 발행된 최신 기사를 최우선으로 선정합니다."""
     categories_order = [
         "거시 경제 & 주요 지표",
         "주요 기업 동향",
@@ -394,7 +452,10 @@ def select_balanced_articles_per_category(articles, max_per_cat=8):
     ]
     by_cat = {c: [] for c in categories_order}
 
-    for art in articles:
+    # 전체 기사를 발행 시각 역순(가장 최신 뉴스 우선)으로 정렬
+    sorted_articles = sorted(articles, key=get_article_timestamp, reverse=True)
+
+    for art in sorted_articles:
         cat = art.get("category")
         if not cat or cat not in by_cat:
             cat = categorize_article(art.get("title", ""), art.get("description", ""))
@@ -419,7 +480,9 @@ def collect_all_news(keywords, naver_id=None, naver_secret=None, limit_per_keywo
     if isinstance(keywords, str):
         keywords = [k.strip() for k in keywords.split(",") if k.strip()]
         
-    for kw in keywords:
+    for idx, kw in enumerate(keywords):
+        if idx > 0:
+            time.sleep(random.uniform(0.6, 1.2))
         g_news = collect_google_news(kw, limit=limit_per_keyword)
         n_news = collect_naver_news(kw, naver_id, naver_secret, limit=limit_per_keyword)
         
@@ -682,7 +745,9 @@ class AIEngine:
         for cname, arts in by_cat.items():
             articles_text += f"\n=== [카테고리: {cname} 관련 수집 기사] ===\n"
             for art in arts:
-                articles_text += f"[{art['id']}] 제목: {art['title']}\n출처: {art['source']}\n설명: {art['description']}\n\n"
+                dt = parse_article_datetime(art.get("pub_date", ""))
+                time_str = dt.astimezone(KST).strftime("%Y-%m-%d %H:%M") if dt else "최근 24시간 이내"
+                articles_text += f"[{art['id']}] (발행시각: {time_str}) 제목: {art['title']}\n출처: {art['source']}\n설명: {art['description']}\n\n"
 
         indicators_text = ""
         if indicators:
@@ -735,6 +800,7 @@ class AIEngine:
    - **연관성의 근거가 약하거나 모호하거나 억지스러운 경우, 절대로 억지로 끼워 넣지 말고 반드시 빈 리스트 (`[]`)로 남겨두십시오.** (억지 밸류체인 연결 절대 금지)
 4. ★팩트 검증 및 구시대 정보 / 소속팀·선수 오류 절대 금지★:
    - 제공된 최신 뉴스 기사에 기록된 명확한 팩트에 기반하여 작성하십시오.
+   - 각 기사에 명시된 (발행시각)을 반드시 확인하고, 오늘({today_str}) 또는 어제 가장 최근에 발생한 당일/전일 소식을 최우선으로 선정하여 브리핑을 작성하십시오. 며칠 전 이미 지나간 과거 경기/사건은 절대 다루지 마십시오.
    - 과거 기억이나 이전 학습 데이터에 기반하여 **이미 이적했거나 소속이 바뀐 선수/감독의 과거 소속팀 오인, 과거 대표이사/소속 등을 잘못 작성하는 팩트 오류를 절대 일으키지 마십시오.** 기사 원문의 최신 소속 및 팩트 정보를 엄격히 검증하여 작성해야 합니다.
 5. ★기사 식별자 [ART-XX] 결정론적 바인딩 (DETERMINISTIC ARTICLE ID BINDING)★:
    - 각 기사 항목마다 해당 내용의 바탕이 된 원문 기사의 [ART-XX] 식별자(예: 'ART-01', 'ART-08')를 반드시 `article_id` 필드에 정확히 기재하십시오.
@@ -745,9 +811,10 @@ class AIEngine:
    - `executive_insights`는 오늘 하루 뉴스 전체를 가로지르는 3대 거시적/산업적 관전 포인트(Trend & Structural Shift)를 전문 애널리스트 관점에서 깊이 있게 제시하십시오. 반드시 '핵심 헤드라인: 1~2문장의 심층 분석 및 파급효과' 형식(콜론 구분)으로 작성하되, **설명 문장은 공백 포함 65~85자 내외로 명료하게 작성**하여 썸네일 인포그래픽 카드의 2줄 공간 안에 말줄임표 없이 100% 온전하게 안착되도록 하십시오.
    - `key_watchlist_companies`는 오늘 브리핑 전체에서 가장 핵심적으로 영향받는 대표 기업 3~5개 이름을 배열로 제시하되, **특정 1~2개 대기업이나 단일 섹터에 편중되지 않도록 서로 다른 전략 산업 분야(예: 바이오, 2차전지, 방산, 반도체, 에너지 등)의 유망 기업들을 다채롭고 균형 있게 선정**하십시오. (연관성이 확실한 기업만 도출)
 7. 모든 카테고리(6개 분야)가 결과에 반드시 포함되어야 하며, 각 카테고리마다 아이템이 최소 3개 이상 작성되어야 합니다.
+   - 단, 제공된 기사 목록에 특정 카테고리의 수집 기사가 전혀 없는 경우, 절대로 없는 기사를 거짓으로 지어내지(환각) 마시고, 해당 카테고리는 결과에서 제외하거나 수집된 팩트 기사 범위 내에서만 작성하십시오.
    - "거시 경제 & 주요 지표" 카테고리는 제공된 경제 지표 요약(첫 번째 아이템) 외에도 금리, 환율, 주식시장, 부동산, 물가, 통화정책 등 실질적인 경제 기사를 최소 3개 이상 추가하여 총 4개 이상의 아이템으로 구성하세요.
    - "스포츠" 카테고리:
-     - **시즌 중(On-Season)**인 종목: 당일/전일 실제 경기 결과, 스코어(점수/승패), 주요 선수 활약상 및 순위 변동 등 경기 결과를 구체적으로 포함하세요.
+     - **시즌 중(On-Season)**인 종목: 반드시 당일({today_str}) 또는 전일 가장 최근에 열린 실제 경기 결과, 스코어(점수/승패), 주요 선수 활약상 및 순위 변동 등 최신 소식만 포함하세요. 며칠 전 지난 경기 결과는 절대 포함하지 마십시오.
      - **시즌 종료/휴식기(Off-Season / 비경기일)**인 종목: 억지로 경기 결과를 환각(가짜 스코어)하지 말고, 대형 FA 계약, 트레이드, 감독/스태프 교체, 선수단 개편, 스프링캠프훈련, 주요 수상 소식 등 뉴스 기사에 제공된 팩트 소식을 정확히 전달하세요.
      - 야구(KBO/MLB: 봄~가을), 축구(EPL/유럽: 가을~봄), 농구(겨울~봄), 골프 등 사계절 교차 종목이 존재하므로, 당일 진행 중인 종목 뉴스를 우선 활용하세요.
    - ★카테고리 매핑 원칙 및 비(非)스포츠 기사 스포츠 분류 절대 금지 (STRICT CATEGORY INTEGRITY)★:
@@ -1949,22 +2016,24 @@ def format_briefing_to_html(briefing_data, indicators=None, has_image=False, for
               <a href="{source_url}" target="_blank" style="font-size: 12px; color: #6366F1; text-decoration: none; font-weight: 500;">관련 기사 보기{source_label} →</a>
             </div>""")
 
-            # 연관 기사 렌더링
+            # 연관 기사 렌더링 (실제 유효 기사 링크만 렌더링)
             related_articles = item.get("related_articles", [])
-            if related_articles:
-                parts.append(f"""
-            <div style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed #E2E8F0;">
-              <div style="font-size: 11px; color: #64748B; font-weight: 600; margin-bottom: 4px;">🔗 연관 기사</div>""")
-                for rel_art in related_articles:
-                    rel_title = rel_art.get("title", "")
-                    rel_url = rel_art.get("link", "")
-                    rel_src = rel_art.get("source", "")
-                    rel_src_label = f" ({rel_src})" if rel_src else ""
-                    if rel_url and is_valid_article_url(rel_url):
-                        parts.append(f"""
+            live_rel_parts = []
+            for rel_art in related_articles:
+                rel_title = rel_art.get("title", "")
+                rel_url = rel_art.get("link", "")
+                rel_src = rel_art.get("source", "")
+                rel_src_label = f" ({rel_src})" if rel_src else ""
+                if rel_url and is_valid_article_url(rel_url):
+                    live_rel_parts.append(f"""
               <div style="margin-bottom: 3px; font-size: 11px;">
                 <a href="{rel_url}" target="_blank" style="color: #475569; text-decoration: none; font-weight: 400;">• {rel_title}{rel_src_label} →</a>
               </div>""")
+            if live_rel_parts:
+                parts.append("""
+            <div style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed #E2E8F0;">
+              <div style="font-size: 11px; color: #64748B; font-weight: 600; margin-bottom: 4px;">🔗 연관 기사</div>""")
+                parts.extend(live_rel_parts)
                 parts.append("""
             </div>""")
 
@@ -2379,7 +2448,7 @@ def verify_urls_liveness(briefing, max_workers=10, timeout=4.0):
         dead_count = sum(1 for v in url_status.values() if not v)
         logger.info(f"링크 생존 검증 완료: 정상 {len(url_status)-dead_count}개 / 사망·차단 {dead_count}개")
 
-    # 2. 사망/차단 링크 정화 및 네이버 뉴스 검색 대체 링크 연결 (결손 0% 보장)
+    # 2. 사망/차단 링크 정화 (무의미한 검색 포털 대체 링크 생성 배제)
     for section in briefing.get("sections", []):
         for item in section.get("items", []):
             src = item.get("source_url", "").strip()
@@ -2388,31 +2457,18 @@ def verify_urls_liveness(briefing, max_workers=10, timeout=4.0):
             # 원본 링크가 살아있으면 정상 보존
             if src and url_status.get(src, False):
                 pass
-            # 원본 링크가 없거나 사망/차단된 경우 -> 네이버 뉴스 검색 대체 링크 자동 연결
-            elif headline:
-                encoded_query = urllib.parse.quote_plus(headline)
-                fallback_url = f"https://search.naver.com/search.naver?where=news&query={encoded_query}"
-                item["source_url"] = fallback_url
-                if not item.get("source_name"):
-                    item["source_name"] = "네이버 뉴스 검색"
+            # 원본 링크가 없거나 사망/차단된 경우 -> 무의미한 검색 링크 연결 방지를 위해 링크 미제공
+            else:
                 if src:
-                    logger.info(f"사망/차단 링크 감지 -> 네이버 뉴스 검색 대체 링크 연결: '{headline}' -> {fallback_url}")
-                else:
-                    logger.info(f"누락 링크 보완 -> 네이버 뉴스 검색 대체 링크 연결: '{headline}' -> {fallback_url}")
+                    logger.info(f"사망/차단 링크 감지 및 제거 (검색 대체 링크 미부여): '{headline}' -> {src}")
+                item["source_url"] = ""
+                item["source_name"] = ""
 
             live_rels = []
             for r in item.get("related_articles", []):
                 ru = r.get("link", "").strip()
-                rtitle = r.get("title", "").strip()
                 if ru and url_status.get(ru, False):
                     live_rels.append(r)
-                elif ru and rtitle:
-                    encoded_query = urllib.parse.quote_plus(rtitle)
-                    r["link"] = f"https://search.naver.com/search.naver?where=news&query={encoded_query}"
-                    if not r.get("source"):
-                        r["source"] = "네이버 뉴스 검색"
-                    live_rels.append(r)
-                    logger.info(f"연관 기사 사망 링크 감지 -> 네이버 뉴스 검색 대체 링크 연결: '{rtitle}'")
             item["related_articles"] = live_rels
 
     return briefing
@@ -2505,7 +2561,7 @@ def main():
     gemini_api_key = _clean_env_val(os.environ.get("GEMINI_API_KEY"))
     naver_client_id = _clean_env_val(os.environ.get("NAVER_CLIENT_ID"))
     naver_client_secret = _clean_env_val(os.environ.get("NAVER_CLIENT_SECRET"))
-    keywords_env = _clean_env_val(os.environ.get("NEWS_KEYWORDS")) or "거시 경제 증시, 금리 환율 부동산, 인공지능 AI 반도체, 미래 모빌리티 2차전지 배터리, 바이오 제약 신약 헬스케어, 방산 우주항공 조선 수주, 원전 SMR 신재생에너지 전력인프라, 국제 정세 외교, 국내 정치, 스포츠 경기 결과 KBO 손흥민"
+    keywords_env = _clean_env_val(os.environ.get("NEWS_KEYWORDS")) or "거시 경제 증시, 금리 환율 부동산, 인공지능 AI 반도체, 미래 모빌리티 2차전지 배터리, 바이오 제약 신약 헬스케어, 방산 우주항공 조선 수주, 원전 SMR 신재생에너지 전력인프라, 국제 정세 외교, 국내 정치, KBO 프로야구, 해외축구 손흥민, 메이저리그 MLB"
     keywords = [k.strip() for k in keywords_env.split(",") if k.strip()]
 
     slack_webhook = _clean_env_val(os.environ.get("SLACK_WEBHOOK_URL"))
