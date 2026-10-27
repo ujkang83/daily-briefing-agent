@@ -1584,6 +1584,245 @@ def _render_indicator_cards(indicators, for_local_viewer=False):
     return "\n".join(html_parts)
 
 
+def _render_tistory_full_briefing_html(briefing_data, indicators=None, tags_str=""):
+    """
+    기본 일일 브리핑 전체(총평 + 4대 경제지표 + 6대 섹션 기사 + 명언)를
+    티스토리 구글 검색 최적화(H2/H3 태그) 및 단정한 문어체(~다, ~함)로 체계화한 종합본 HTML을 생성합니다.
+    """
+    title = briefing_data.get("title", "오늘의 일일 브리핑")
+    daily_summary = briefing_data.get("daily_summary") or briefing_data.get("short_summary_for_sns") or ""
+    executive_insights = briefing_data.get("executive_insights", [])
+    watchlist_companies = briefing_data.get("key_watchlist_companies", [])
+    sections = briefing_data.get("sections", [])
+    closing = briefing_data.get("closing_comment", "")
+    daily_quote = briefing_data.get("daily_quote", "")
+
+    now_kst = datetime.now(KST)
+    today_str = now_kst.strftime("%Y년 %m월 %d일")
+    weekday_kr = ["월", "화", "수", "목", "금", "토", "일"]
+    today_weekday = weekday_kr[now_kst.weekday()]
+
+    html_parts = []
+    html_parts.append(f"""
+<!-- ===== 티스토리 전용 기본 데일리 브리핑 종합본 (HTML 모드 복사용) ===== -->
+<div id="tistory-full-briefing-container" style="max-width: 760px; margin: 20px auto; background-color: #FFFFFF; padding: 36px 32px; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.08); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans KR', sans-serif; line-height: 1.75; color: #1E293B;">
+
+  <!-- 리포트 헤더 -->
+  <div style="border-bottom: 2px solid #0F172A; padding-bottom: 18px; margin-bottom: 28px;">
+    <div style="display: inline-block; background-color: #EFF6FF; color: #2563EB; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 4px; margin-bottom: 10px; border: 1px solid #BFDBFE;">
+      TISTORY DAILY BRIEFING · 일일 종합 시황 인텔리전스
+    </div>
+    <h1 style="font-size: 24px; font-weight: 800; color: #0F172A; line-height: 1.4; margin: 0 0 10px 0;">
+      📢 {title}
+    </h1>
+    <div style="font-size: 12px; color: #64748B;">
+      작성일: {today_str} ({today_weekday}) · 분야: 거시경제·산업·증시 종합 · 어투: 단정한 전문 문어체(~다, ~함)
+    </div>
+  </div>
+""")
+
+    # 1. 핵심 총평 및 3대 전략 포인트
+    insights_html = ""
+    if executive_insights:
+        ins_items = []
+        for idx, ins in enumerate(executive_insights[:3]):
+            ins_items.append(f'<div style="margin-bottom: 6px; font-size: 13.5px; color: #334155; line-height: 1.6;"><b style="color: #4F46E5;">⚡ [{idx+1}]</b> {ins}</div>')
+        insights_html = f"""
+    <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid #C7D2FE;">
+      <h3 style="font-size: 14px; font-weight: 800; color: #4338CA; margin: 0 0 8px 0;">💡 오늘의 3대 전략적 관전 포인트 (Key Strategic Insights)</h3>
+      {''.join(ins_items)}
+    </div>"""
+
+    watchlist_html = ""
+    if watchlist_companies:
+        badges = " ".join([f'<span style="display: inline-block; background: #FFFFFF; color: #312E81; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px; border: 1px solid #C7D2FE; margin: 2px 4px 2px 0;">{c}</span>' for c in watchlist_companies[:5]])
+        watchlist_html = f"""
+    <div style="margin-top: 12px; padding-top: 10px; border-top: 1px dashed #C7D2FE;">
+      <div style="font-size: 12px; font-weight: 700; color: #4338CA; margin-bottom: 4px;">🔥 오늘의 핵심 주목 기업 (Watchlist)</div>
+      <div>{badges}</div>
+    </div>"""
+
+    html_parts.append(f"""
+  <!-- 1. 핵심 총평 -->
+  <h2 style="font-size: 19px; font-weight: 800; color: #0F172A; border-bottom: 2px solid #2563EB; padding-bottom: 8px; margin-top: 24px; margin-bottom: 14px; display: flex; align-items: center; gap: 8px;">
+    <span style="color: #2563EB;">1.</span> 글로벌 시장 및 산업 핵심 총평 (Core Thesis)
+  </h2>
+  <div style="padding: 18px 20px; background-color: #EEF2FF; border-left: 5px solid #6366F1; border-radius: 8px; margin-bottom: 24px;">
+    <div style="font-size: 15px; font-weight: 700; color: #1E293B; line-height: 1.6;">
+      {daily_summary}
+    </div>
+    {insights_html}
+    {watchlist_html}
+  </div>
+""")
+
+    # 2. 경제 지표 요약 표
+    if indicators and isinstance(indicators, dict):
+        ind_rows = []
+        flat_items = []
+        for k, v in indicators.items():
+            if isinstance(v, dict):
+                flat_items.append((k, v))
+            elif isinstance(v, list):
+                for item in v:
+                    if isinstance(item, dict):
+                        i_name = item.get("name", k)
+                        flat_items.append((i_name, item))
+
+        for name, val in flat_items:
+            price_raw = val.get("price") if val.get("price") is not None else val.get("value", 0)
+            unit = val.get("unit", "")
+            is_no_dec = val.get("no_decimal", False)
+            if isinstance(price_raw, (int, float)):
+                price_str = f"{price_raw:,.0f}" if is_no_dec else f"{price_raw:,.2f}"
+            else:
+                price_str = str(price_raw)
+
+            chg_raw = val.get("change", 0)
+            pct_raw = val.get("pct", 0)
+            if isinstance(chg_raw, str):
+                chg_str = chg_raw
+                color = "#DC2626" if "+" in chg_raw or "▲" in chg_raw else ("#2563EB" if "-" in chg_raw or "▼" in chg_raw else "#64748B")
+            else:
+                color = "#DC2626" if chg_raw > 0 else ("#2563EB" if chg_raw < 0 else "#64748B")
+                arrow = "▲" if chg_raw > 0 else ("▼" if chg_raw < 0 else "-")
+                chg_str = f"{arrow} {abs(chg_raw):,.2f} ({pct_raw:+.2f}%)"
+
+            ind_rows.append(f"""
+        <tr>
+          <td style="padding: 8px 12px; border: 1px solid #E2E8F0; font-size: 13px; font-weight: 600; color: #1E293B;">{name}</td>
+          <td style="padding: 8px 12px; border: 1px solid #E2E8F0; font-size: 13px; text-align: right; font-weight: 700; color: #0F172A;">{price_str} <span style="font-size: 11px; font-weight: 400; color: #64748B;">{unit}</span></td>
+          <td style="padding: 8px 12px; border: 1px solid #E2E8F0; font-size: 13px; text-align: right; font-weight: 700; color: {color};">{chg_str}</td>
+        </tr>""")
+        
+        html_parts.append(f"""
+  <!-- 2. 주요 경제 지표 -->
+  <h2 style="font-size: 19px; font-weight: 800; color: #0F172A; border-bottom: 2px solid #2563EB; padding-bottom: 8px; margin-top: 32px; margin-bottom: 14px; display: flex; align-items: center; gap: 8px;">
+    <span style="color: #2563EB;">2.</span> 글로벌 주요 경제 지표 요약
+  </h2>
+  <div style="margin: 16px 0 24px 0; overflow-x: auto;">
+    <table style="width: 100%; border-collapse: collapse; border: 1px solid #CBD5E1;">
+      <thead>
+        <tr style="background-color: #F1F5F9;">
+          <th style="padding: 8px 12px; border: 1px solid #CBD5E1; text-align: left; font-size: 12px; color: #475569;">지표 항목</th>
+          <th style="padding: 8px 12px; border: 1px solid #CBD5E1; text-align: right; font-size: 12px; color: #475569;">현재 수치</th>
+          <th style="padding: 8px 12px; border: 1px solid #CBD5E1; text-align: right; font-size: 12px; color: #475569;">전일 대비 (등락률)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {''.join(ind_rows)}
+      </tbody>
+    </table>
+  </div>
+""")
+
+    # 3. 6대 섹션 뉴스
+    html_parts.append(f"""
+  <!-- 3. 분야별 주요 뉴스 및 심층 분석 -->
+  <h2 style="font-size: 19px; font-weight: 800; color: #0F172A; border-bottom: 2px solid #2563EB; padding-bottom: 8px; margin-top: 32px; margin-bottom: 18px; display: flex; align-items: center; gap: 8px;">
+    <span style="color: #2563EB;">3.</span> 분야별 주요 뉴스 & 심층 밸류체인 분석
+  </h2>
+""")
+
+    for sec in sections:
+        category = sec.get("category", "기타")
+        items = sec.get("items", [])
+        if not items:
+            continue
+        badge_color, badge_icon = _get_badge_style(category)
+        
+        html_parts.append(f"""
+  <h3 style="font-size: 16px; font-weight: 800; color: #0F172A; margin: 26px 0 12px 0; padding-left: 8px; border-left: 4px solid {badge_color};">
+    {badge_icon} {category}
+  </h3>
+""")
+
+        for item in items:
+            headline = item.get("headline", "")
+            summary = (item.get("summary", "") or "").replace("\n", "<br>")
+            impact = item.get("impact", "")
+            related_companies = item.get("related_companies", [])
+            source_url = item.get("source_url", "")
+            source_name = item.get("source_name", "")
+            source_label = f" ({source_name})" if source_name else ""
+
+            comp_html = ""
+            if related_companies:
+                comp_texts = []
+                for comp in related_companies:
+                    cname = comp.get("name", "")
+                    crel = comp.get("relevance", "")
+                    comp_texts.append(f"<b>{cname}</b>: {crel}")
+                comp_html = f"""
+    <div style="margin-top: 10px; padding: 10px 14px; background-color: #F1F5F9; border-left: 3px solid #3B82F6; border-radius: 4px; font-size: 12.5px; color: #1E40AF; line-height: 1.5;">
+      🏢 <b>관련 기업 및 밸류체인 연관성:</b><br>{'<br>'.join(comp_texts)}
+    </div>"""
+
+            impact_html = f"""
+    <div style="margin-top: 10px; padding: 10px 14px; background-color: #F0FDF4; border-left: 3px solid #10B981; border-radius: 4px; font-size: 13px; color: #065F46; line-height: 1.6;">
+      💡 <b>심층 인사이트 (Why It Matters):</b> {impact}
+    </div>""" if impact else ""
+
+            source_html = f"""
+    <div style="margin-top: 8px; font-size: 11.5px; text-align: right;">
+      <a href="{source_url}" target="_blank" style="color: #6366F1; text-decoration: none; font-weight: 500;">원문 기사 보기{source_label} →</a>
+    </div>""" if source_url and is_valid_article_url(source_url) else ""
+
+            html_parts.append(f"""
+  <div style="margin-bottom: 20px; padding: 18px 20px; background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;">
+    <h4 style="font-size: 15px; font-weight: 700; color: #0F172A; line-height: 1.4; margin: 0 0 8px 0;">{headline}</h4>
+    <div style="font-size: 14px; color: #334155; line-height: 1.7;">{summary}</div>
+    {impact_html}
+    {comp_html}
+    {source_html}
+  </div>
+""")
+
+    # 4. 마무리 총평 및 명언
+    quote_part = ""
+    if daily_quote:
+        quote_clean = daily_quote.replace('"', '').replace('“', '').replace('”', '').strip()
+        q_author = ""
+        if " - " in quote_clean:
+            q_text, q_author = quote_clean.rsplit(" - ", 1)
+        elif " — " in quote_clean:
+            q_text, q_author = quote_clean.rsplit(" — ", 1)
+        else:
+            q_text = quote_clean
+        author_div = f'<div style="text-align: right; color: #6366F1; font-weight: 600; font-size: 13px; margin-top: 6px;">— {q_author}</div>' if q_author else ""
+        quote_part = f"""
+    <div style="margin-top: 14px; padding: 14px 18px; background: #EEF2FF; border-left: 4px solid #6366F1; border-radius: 6px;">
+      <div style="font-size: 11px; font-weight: 700; color: #4F46E5; margin-bottom: 4px;">✨ TODAY'S INSPIRING QUOTE</div>
+      <div style="font-size: 13.5px; font-weight: 600; color: #1E293B; font-style: italic;">“{q_text}”</div>
+      {author_div}
+    </div>"""
+
+    closing_part = f"""
+  <div style="font-size: 14px; color: #475569; line-height: 1.7; margin-bottom: 12px; font-style: italic;">
+    {closing}
+  </div>""" if closing else ""
+
+    html_parts.append(f"""
+  <!-- 4. 총평 및 명언 -->
+  <h2 style="font-size: 19px; font-weight: 800; color: #0F172A; border-bottom: 2px solid #2563EB; padding-bottom: 8px; margin-top: 32px; margin-bottom: 14px; display: flex; align-items: center; gap: 8px;">
+    <span style="color: #2563EB;">4.</span> 전략적 종합 관전 포인트 & 오늘의 명언
+  </h2>
+  {closing_part}
+  {quote_part}
+
+  <!-- 하단 추천 검색 태그 -->
+  <div style="margin-top: 32px; padding-top: 16px; border-top: 1px dashed #CBD5E1;">
+    <div style="font-size: 12px; font-weight: 700; color: #64748B; margin-bottom: 8px;">🏷️ 관련 추천 검색 태그</div>
+    <div style="font-size: 12px; color: #2563EB; line-height: 1.6;">
+      {tags_str}
+    </div>
+  </div>
+
+</div>
+""")
+    return "\n".join(html_parts)
+
+
 def _render_tistory_deep_dive_html(briefing_data, tags_str=""):
     """
     티스토리 에버그린 아카이빙을 위한 전문 문어체(~다, ~함) 심층 분석 리포트 HTML을 생성합니다.
@@ -1823,23 +2062,26 @@ def _get_naver_blog_toolbar_and_script(tags_str="모닝브리핑, 데일리브�
     네이버 블로그 및 티스토리 포스팅을 위한 상단 고정 원클릭 복사 도우미 툴바와 html2canvas 캡처 스크립트를 반환합니다.
     """
     toolbar_html = f"""
-<!-- ===== 3채널 원클릭 맞춤 퍼블리싱 도우미 툴바 ===== -->
+<!-- ===== 4채널 원클릭 맞춤 퍼블리싱 도우미 툴바 ===== -->
 <div id="naver-blog-toolbar" style="position: sticky; top: 0; z-index: 10000; background: #0F172A; color: #FFFFFF; padding: 10px 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); border-bottom: 2px solid #6366F1; font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', Arial, sans-serif;">
-  <div style="max-width: 860px; margin: 0 auto;">
+  <div style="max-width: 920px; margin: 0 auto;">
     
-    <!-- 채널 선택 탭 바 (네이버 / 티스토리 / 스레드) -->
+    <!-- 채널 선택 탭 바 (네이버 / 티스토리 전체 / 티스토리 심층 / 스레드) -->
     <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.12); padding-bottom: 8px;">
       <div style="display: flex; align-items: center; gap: 6px;">
-        <span style="font-size: 13px; font-weight: 800; color: #38BDF8;">🚀 3채널 맞춤형 발행 파이프라인</span>
+        <span style="font-size: 13px; font-weight: 800; color: #38BDF8;">🚀 4채널 맞춤형 발행 파이프라인</span>
       </div>
-      <div style="display: flex; gap: 6px;">
-        <button id="tab-btn-naver" onclick="switchChannelTab('naver')" class="channel-tab-btn" style="cursor: pointer; background: #2563EB; color: #FFFFFF; border: none; padding: 6px 13px; border-radius: 6px; font-size: 12px; font-weight: 700; transition: all 0.2s; box-shadow: 0 2px 6px rgba(37,99,235,0.4);">
-          💚 네이버 블로그 (요약·구어체)
+      <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+        <button id="tab-btn-naver" onclick="switchChannelTab('naver')" class="channel-tab-btn" style="cursor: pointer; background: #2563EB; color: #FFFFFF; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 700; transition: all 0.2s; box-shadow: 0 2px 6px rgba(37,99,235,0.4);">
+          💚 네이버 블로그
         </button>
-        <button id="tab-btn-tistory" onclick="switchChannelTab('tistory')" class="channel-tab-btn" style="cursor: pointer; background: rgba(255,255,255,0.08); color: #94A3B8; border: 1px solid rgba(255,255,255,0.2); padding: 6px 13px; border-radius: 6px; font-size: 12px; font-weight: 700; transition: all 0.2s;">
-          🧡 티스토리 (심층·문어체)
+        <button id="tab-btn-tistory-full" onclick="switchChannelTab('tistory-full')" class="channel-tab-btn" style="cursor: pointer; background: rgba(255,255,255,0.08); color: #94A3B8; border: 1px solid rgba(255,255,255,0.2); padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 700; transition: all 0.2s;">
+          🧡 티스토리 전체 브리핑
         </button>
-        <button id="tab-btn-threads" onclick="switchChannelTab('threads')" class="channel-tab-btn" style="cursor: pointer; background: rgba(255,255,255,0.08); color: #94A3B8; border: 1px solid rgba(255,255,255,0.2); padding: 6px 13px; border-radius: 6px; font-size: 12px; font-weight: 700; transition: all 0.2s;">
+        <button id="tab-btn-tistory-deep" onclick="switchChannelTab('tistory-deep')" class="channel-tab-btn" style="cursor: pointer; background: rgba(255,255,255,0.08); color: #94A3B8; border: 1px solid rgba(255,255,255,0.2); padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 700; transition: all 0.2s;">
+          📑 티스토리 심층 리포트
+        </button>
+        <button id="tab-btn-threads" onclick="switchChannelTab('threads')" class="channel-tab-btn" style="cursor: pointer; background: rgba(255,255,255,0.08); color: #94A3B8; border: 1px solid rgba(255,255,255,0.2); padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 700; transition: all 0.2s;">
           🧵 스레드 (4단계 숏폼)
         </button>
       </div>
@@ -1873,20 +2115,33 @@ def _get_naver_blog_toolbar_and_script(tags_str="모닝브리핑, 데일리브�
         </button>
       </div>
 
-      <!-- 2. 티스토리 버튼 세트 (초기 숨김) -->
-      <div id="toolbar-btns-tistory" style="display: none; flex-wrap: wrap; gap: 6px;">
-        <button onclick="copyTistoryHtml()" style="background: linear-gradient(135deg, #EA580C, #C2410C); color: #FFFFFF; border: none; padding: 7px 14px; border-radius: 6px; font-size: 12px; font-weight: 800; cursor: pointer; box-shadow: 0 2px 8px rgba(234,88,12,0.4);" title="티스토리 에디터 [HTML 모드]에 바로 붙여넣는 원본 소스 복사">
-          🧡 티스토리 HTML 복사
+      <!-- 2. 티스토리 전체 브리핑 버튼 세트 (초기 숨김) -->
+      <div id="toolbar-btns-tistory-full" style="display: none; flex-wrap: wrap; gap: 6px;">
+        <button onclick="copyTistoryFullHtml()" style="background: linear-gradient(135deg, #EA580C, #C2410C); color: #FFFFFF; border: none; padding: 7px 14px; border-radius: 6px; font-size: 12px; font-weight: 800; cursor: pointer; box-shadow: 0 2px 8px rgba(234,88,12,0.4);" title="티스토리 에디터 [HTML 모드]에 바로 붙여넣는 전체 브리핑 원본 소스 복사">
+          🧡 티스토리 전체 HTML 복사
         </button>
         <button onclick="copyTistoryTags()" style="background: linear-gradient(135deg, #F97316, #EA580C); color: #FFFFFF; border: none; padding: 7px 12px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer;" title="티스토리 태그란에 붙여넣을 검색 키워드 복사">
           🏷️ 티스토리 태그 복사
         </button>
-        <button onclick="copyTistoryText()" style="background: #334155; color: #F1F5F9; border: 1px solid #475569; padding: 7px 12px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer;" title="텍스트 본문만 복사">
+        <button onclick="copyTistoryFullText()" style="background: #334155; color: #F1F5F9; border: 1px solid #475569; padding: 7px 12px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer;" title="텍스트 본문만 복사">
+          📝 전체 텍스트 복사
+        </button>
+      </div>
+
+      <!-- 3. 티스토리 심층 리포트 버튼 세트 (초기 숨김) -->
+      <div id="toolbar-btns-tistory-deep" style="display: none; flex-wrap: wrap; gap: 6px;">
+        <button onclick="copyTistoryDeepHtml()" style="background: linear-gradient(135deg, #D97706, #B45309); color: #FFFFFF; border: none; padding: 7px 14px; border-radius: 6px; font-size: 12px; font-weight: 800; cursor: pointer; box-shadow: 0 2px 8px rgba(217,119,6,0.4);" title="티스토리 에디터 [HTML 모드]에 바로 붙여넣는 심층 리포트 소스 복사">
+          📑 심층 리포트 HTML 복사
+        </button>
+        <button onclick="copyTistoryTags()" style="background: linear-gradient(135deg, #F97316, #EA580C); color: #FFFFFF; border: none; padding: 7px 12px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer;" title="티스토리 태그란에 붙여넣을 검색 키워드 복사">
+          🏷️ 티스토리 태그 복사
+        </button>
+        <button onclick="copyTistoryDeepText()" style="background: #334155; color: #F1F5F9; border: 1px solid #475569; padding: 7px 12px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer;" title="심층 텍스트 본문만 복사">
           📝 심층 텍스트 복사
         </button>
       </div>
 
-      <!-- 3. 스레드 버튼 세트 (초기 숨김) -->
+      <!-- 4. 스레드 버튼 세트 (초기 숨김) -->
       <div id="toolbar-btns-threads" style="display: none; flex-wrap: wrap; gap: 6px;">
         <button onclick="copyThreadsText()" style="background: linear-gradient(135deg, #6366F1, #9333EA); color: #FFFFFF; border: none; padding: 7px 16px; border-radius: 6px; font-size: 12px; font-weight: 800; cursor: pointer; box-shadow: 0 2px 8px rgba(99,102,241,0.4);" title="스레드 모바일 앱에 붙여넣을 4단계 포스팅 복사">
           🧵 스레드 본문 복사
@@ -1923,11 +2178,19 @@ function showToast(message, bgColor) {
 }
 
 function switchChannelTab(channel) {
-  const tabs = ['naver', 'tistory', 'threads'];
+  const tabs = ['naver', 'tistory-full', 'tistory-deep', 'threads'];
   const descMap = {
     'naver': '네이버 스마트에디터에 맞춘 요약 카드와 캡처 이미지를 바로 복사할 수 있습니다.',
-    'tistory': '구글 검색(SEO)에 최적화된 단정한 문어체 심층 분석글입니다. [티스토리 HTML 복사]를 눌러 에디터 [HTML 모드]에 붙여넣으세요.',
+    'tistory-full': '티스토리 전용 기본 데일리 브리핑 종합본입니다. H2/H3 태그와 전문 문어체(~다, ~함)로 최적화되었습니다. [티스토리 전체 HTML 복사]를 눌러 에디터 [HTML 모드]에 붙여넣으세요.',
+    'tistory-deep': '구글 검색(SEO)에 최적화된 심층 테마 분석글(비교표+용어사전)입니다. [심층 리포트 HTML 복사]를 눌러 에디터 [HTML 모드]에 붙여넣으세요.',
     'threads': '모바일 독자를 위한 4단계(후킹-팩트-인사이트-질문) 숏폼입니다. [스레드 본문 복사]를 눌러 바로 붙여넣으세요.'
+  };
+
+  const colorMap = {
+    'naver': '#2563EB',
+    'tistory-full': '#EA580C',
+    'tistory-deep': '#D97706',
+    'threads': '#6366F1'
   };
 
   tabs.forEach(tab => {
@@ -1936,7 +2199,7 @@ function switchChannelTab(channel) {
     const btns = document.getElementById('toolbar-btns-' + tab);
     if (btn) {
       if (tab === channel) {
-        btn.style.background = (tab === 'naver') ? '#2563EB' : (tab === 'tistory' ? '#EA580C' : '#6366F1');
+        btn.style.background = colorMap[tab] || '#2563EB';
         btn.style.color = '#FFFFFF';
         btn.style.borderColor = 'transparent';
         btn.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
@@ -1979,39 +2242,10 @@ async function copyThreadsText() {
   }
 }
 
-async function copyTistoryText() {
-  const container = document.getElementById('tistory-article-container');
+async function copyTistoryFullHtml() {
+  const container = document.getElementById('tistory-full-briefing-container');
   if (!container) {
-    showToast('❌ 티스토리 본문을 찾을 수 없습니다.', '#EF4444');
-    return;
-  }
-  try {
-    const clone = container.cloneNode(true);
-    clone.querySelectorAll('.no-copy').forEach(el => el.remove());
-    const text = clone.innerText;
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      await navigator.clipboard.writeText(text);
-    } else {
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      ta.style.position = 'fixed';
-      ta.style.left = '-9999px';
-      document.body.appendChild(ta);
-      ta.focus();
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-    }
-    showToast('📝 티스토리 텍스트 본문 복사 완료!', '#EA580C');
-  } catch (e) {
-    showToast('❌ 복사 실패: ' + e.message, '#EF4444');
-  }
-}
-
-async function copyTistoryHtml() {
-  const container = document.getElementById('tistory-article-container') || document.getElementById('briefing-root-container');
-  if (!container) {
-    showToast('❌ 복사할 본문 컨테이너를 찾을 수 없습니다.', '#EF4444');
+    showToast('❌ 티스토리 전체 브리핑 컨테이너를 찾을 수 없습니다.', '#EF4444');
     return;
   }
   try {
@@ -2033,14 +2267,57 @@ async function copyTistoryHtml() {
       document.execCommand('copy');
       document.body.removeChild(textarea);
     }
-    showToast('🧡 티스토리용 HTML 복사 완료! 티스토리 [HTML 모드]에서 [Ctrl+V] 하세요.', '#EA580C');
+    showToast('🧡 티스토리 전체 브리핑 HTML 복사 완료! 티스토리 [HTML 모드]에서 [Ctrl+V] 하세요.', '#EA580C');
   } catch (err) {
-    console.warn('클립보드 복사 에러:', err);
-    try {
-      const clone = container.cloneNode(true);
-      clone.querySelectorAll('.no-copy').forEach(el => el.remove());
-      clone.querySelectorAll('script, noscript').forEach(el => el.remove());
-      const htmlCode = clone.outerHTML;
+    console.error(err);
+    showToast('❌ 복사 실패: ' + err.message, '#EF4444');
+  }
+}
+
+async function copyTistoryFullText() {
+  const container = document.getElementById('tistory-full-briefing-container');
+  if (!container) {
+    showToast('❌ 티스토리 전체 브리핑을 찾을 수 없습니다.', '#EF4444');
+    return;
+  }
+  try {
+    const clone = container.cloneNode(true);
+    clone.querySelectorAll('.no-copy').forEach(el => el.remove());
+    const text = clone.innerText;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    showToast('📝 티스토리 전체 텍스트 복사 완료!', '#EA580C');
+  } catch (e) {
+    showToast('❌ 복사 실패: ' + e.message, '#EF4444');
+  }
+}
+
+async function copyTistoryDeepHtml() {
+  const container = document.getElementById('tistory-article-container');
+  if (!container) {
+    showToast('❌ 심층 리포트 컨테이너를 찾을 수 없습니다.', '#EF4444');
+    return;
+  }
+  try {
+    const clone = container.cloneNode(true);
+    clone.querySelectorAll('.no-copy').forEach(el => el.remove());
+    clone.querySelectorAll('script, noscript').forEach(el => el.remove());
+    const htmlCode = clone.outerHTML;
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(htmlCode);
+    } else {
       const textarea = document.createElement('textarea');
       textarea.value = htmlCode;
       textarea.style.position = 'fixed';
@@ -2050,13 +2327,46 @@ async function copyTistoryHtml() {
       textarea.select();
       document.execCommand('copy');
       document.body.removeChild(textarea);
-      showToast('🧡 티스토리용 HTML 복사 완료! 티스토리 [HTML 모드]에서 [Ctrl+V] 하세요.', '#EA580C');
-    } catch(e) {
-      console.error(e);
-      showToast('❌ HTML 복사 실패: ' + e.message, '#EF4444');
     }
+    showToast('📑 티스토리 심층 리포트 HTML 복사 완료! 티스토리 [HTML 모드]에서 [Ctrl+V] 하세요.', '#D97706');
+  } catch (err) {
+    console.error(err);
+    showToast('❌ 복사 실패: ' + err.message, '#EF4444');
   }
 }
+
+async function copyTistoryDeepText() {
+  const container = document.getElementById('tistory-article-container');
+  if (!container) {
+    showToast('❌ 심층 리포트를 찾을 수 없습니다.', '#EF4444');
+    return;
+  }
+  try {
+    const clone = container.cloneNode(true);
+    clone.querySelectorAll('.no-copy').forEach(el => el.remove());
+    const text = clone.innerText;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    showToast('📝 티스토리 심층 텍스트 복사 완료!', '#D97706');
+  } catch (e) {
+    showToast('❌ 복사 실패: ' + e.message, '#EF4444');
+  }
+}
+
+// 하위 호환성 유지 별칭 (Alias)
+const copyTistoryHtml = copyTistoryDeepHtml;
+const copyTistoryText = copyTistoryDeepText;
 
 async function copyTistoryTags() {
   const tagEl = document.getElementById('briefing-tags-data');
@@ -2625,14 +2935,21 @@ def format_briefing_to_html(briefing_data, indicators=None, has_image=False, for
         parts.append("""
 </div><!-- /channel-view-naver -->
 
-<!-- [채널 2] 티스토리 심층 에버그린 아카이빙 뷰 -->
-<div id="channel-view-tistory" class="channel-content-view" style="display: none;">
+<!-- [채널 2] 티스토리 기본 데일리 브리핑 종합본 뷰 -->
+<div id="channel-view-tistory-full" class="channel-content-view" style="display: none;">
+""")
+        parts.append(_render_tistory_full_briefing_html(briefing_data, indicators=indicators, tags_str=tags_str))
+        parts.append("""
+</div><!-- /channel-view-tistory-full -->
+
+<!-- [채널 3] 티스토리 심층 테마 분석 리포트 뷰 -->
+<div id="channel-view-tistory-deep" class="channel-content-view" style="display: none;">
 """)
         parts.append(_render_tistory_deep_dive_html(briefing_data, tags_str=tags_str))
         parts.append("""
-</div><!-- /channel-view-tistory -->
+</div><!-- /channel-view-tistory-deep -->
 
-<!-- [채널 3] 스레드 4단계 숏폼 인게이지먼트 뷰 -->
+<!-- [채널 4] 스레드 4단계 숏폼 인게이지먼트 뷰 -->
 <div id="channel-view-threads" class="channel-content-view" style="display: none;">
 """)
         parts.append(_render_threads_post_html(briefing_data))
