@@ -689,12 +689,14 @@ class TistoryGlossary(BaseModel):
     definition: str = Field(description="해당 용어에 대한 명쾌하고 전문적인 해설 (단정한 문어체 '~다', '~함')")
 
 class TistoryDeepDive(BaseModel):
-    target_topic: str = Field(description="오늘 브리핑 중 구글 검색 수요(SEO)가 높고 장기적 가치가 있는 대형 이슈 1건 제목 (예: [2026 심층분석] 차세대 HBM4 표준 전환과 공급망 파급효과)")
-    overview: str = Field(description="개요 및 발생 배경: 해당 이슈가 발생한 구조적 배경과 핵심 정의 (단정한 문어체 '~다', '~함'으로 작성)")
-    structural_analysis: str = Field(description="핵심 분석: 발표 자료, 시장 통계 및 구조적 메커니즘을 심층 해설 (단정한 문어체)")
-    comparison_table: Optional[TistoryTable] = Field(default=None, description="이슈를 직관적으로 비교/정리하는 구조화된 데이터 표")
-    outlook_and_impact: str = Field(description="전망 및 파급 효과: 향후 일정, 산업별 영향, 실무자/투자자가 주의해야 할 리스크 (단정한 문어체)")
-    key_glossary: List[TistoryGlossary] = Field(default_factory=list, description="구글 검색 유입을 노린 관련 핵심 용어 2~3개 정리")
+    target_topic: str = Field(description="오늘 브리핑 중 구글 검색 수요(SEO)가 높고 장기적 가치가 있는 대형 산업·경제 이슈 1건 제목 (반도체 외에도 바이오, 미래모빌리티/2차전지, K-방산/우주, 원전/전력망, 거시금융/부동산 등 7대 미래 전략 분야에서 균형 있게 선정. 예: [2026 심층분석] 차세대 ADC 항암제 신약 파이프라인과 글로벌 기술수출 분석)")
+    overview: str = Field(description="발생 배경 및 글로벌 구조적 개요: 왜 지금 이 이슈가 폭발했는지 거시 환경, 정책, 기술적 계기를 최소 3~4개의 충실한 단락(공백 포함 500자 이상)으로 서술 (단정한 전문 문어체 '~다', '~함')")
+    structural_analysis: str = Field(description="핵심 메커니즘 및 시장 데이터 심층 분석: 기술적 작동 원리, 기존 방식과의 차이, 공정 수율/원가, 글로벌 시장 점유율 등 구체적 수치와 함께 최소 3~4개의 충실한 단락(공백 포함 800자 이상)으로 서술 (단정한 문어체)")
+    comparison_table: Optional[TistoryTable] = Field(default=None, description="이슈를 직관적으로 비교/정리하는 4~5개 행의 정밀 비교 분석 데이터 표 (headers 3~4개, rows 3~5개)")
+    enterprise_analysis: str = Field(default="", description="주요 관련 기업 및 수혜/리스크 밸류체인 분석: 본문에서 다룬 핵심 관련 기업 2~3곳(대기업 및 핵심 밸류체인 강소기업 등)의 구체적 포지셔닝, 실질적 수혜 요인 및 극복 과제를 기업별로 조목조목 심층 서술 (공백 포함 600자 이상, 단정한 문어체)")
+    outlook_and_impact: str = Field(description="향후 로드맵, 정책 일정 및 리스크 점검: 향후 1~2년 예상 일정표, 산업별 파급효과, 실무자/투자자가 반드시 모니터링해야 할 핵심 리스크 체크리스트 (공백 포함 500자 이상, 단정한 문어체)")
+    key_glossary: List[TistoryGlossary] = Field(default_factory=list, description="구글 검색 유입을 노린 관련 핵심 전문 용어/개념 3~4개 및 충실한 해설")
+    tags: List[str] = Field(default_factory=list, description="심층분석 테마의 핵심 키워드 및 본문에서 분석한 핵심 수혜 기업/종목명을 결합한 고유 검색 태그 5~8개 (예: ['ADC항암제', '리가켐바이오', '유한양행', '표적항암제', '기술수출', '바이오시밀러', '임상3상'])")
 
 class DailyBriefing(BaseModel):
     title: str = Field(description="브리핑 전체 제목 (예: 2026년 9월 7일 모닝 인텔리전스 리포트)")
@@ -855,15 +857,18 @@ class AIEngine:
     - fact_summary (3~4줄): 사건의 본질을 압축 전달
     - insight_comment (2~3줄): 이 뉴스가 실무/시장/개인에게 주는 진짜 의미와 날카로운 시각
     - discussion_question (1줄): 독자의 댓글 참여를 유도하는 질문 던지기
-11. ★티스토리(tistory_deep_dive) 에버그린 아카이빙 심층 분석 지침★:
-    - 오늘 브리핑 중 구글 검색 수요(SEO)가 높고 시간이 지나도 계속 검색될 만한 핵심 제도, 기술, 정책, 대형 산업 이슈 1건을 선정하십시오.
-    - 문체 및 어투: 친절한 구어체가 아닌 **단정한 전문 문어체(~다, ~함, ~로 분석된다)**를 철저히 유지하십시오.
-    - target_topic: 구글 검색 유입을 노린 매력적인 제목 (예: [2026 심층분석] 차세대 AI 데이터센터 전력망 병목과 해결 과제)
-    - overview: 해당 이슈가 발생한 구조적 배경과 핵심 정의 (단정한 문어체로 2~3단락 서술)
-    - structural_analysis: 통계 데이터, 구조적 메커니즘, 공급망 인과관계를 심층 분석 (단정한 문어체)
-    - comparison_table: 주요 수치나 전/후 비교, 업체별 현황을 정리한 표 데이터 (headers 3~4개, rows 2~4개)
-    - outlook_and_impact: 향후 일정, 산업별 파급효과, 주의해야 할 리스크 (단정한 문어체)
-    - key_glossary: 구글 검색 유입을 위한 핵심 용어/개념 2~3개 및 전문 해설
+11. ★티스토리(tistory_deep_dive) 에버그린 아카이빙 심층 분석 지침 (7대 전략 산업 다변화 & 고밀도 2,500자+ 작성)★:
+    - **반도체 편중 절대 금지 및 7대 전략 산업 다변화 원칙**: 오늘 브리핑 중 구글 검색 수요(SEO)가 높고 시간이 지나도 계속 검색될 만한 핵심 제도, 기술, 정책, 대형 산업 이슈 1건을 선정하십시오. **특정 반도체(HBM, 패키징 등)에만 편중되지 말고**, 1) 바이오·헬스케어/제약(비만치료제, ADC신약 등), 2) 미래모빌리티·2차전지(전고체배터리, SDV, 캐즘돌파), 3) K-방산·우주항공·조선, 4) 원전·SMR·전력망 인프라, 5) 거시금융·부동산·통화정책, 6) 글로벌 통상·핵심자원 공급망, 7) IT플랫폼·소프트웨어 등 7대 미래 전략 산업군 중 당일 수집된 팩트 기사에서 가장 시의성 있고 통찰력 있는 주제를 고르게 발굴하십시오.
+    - **고밀도 전문 문어체(A4 2~3장 분량, 총 2,500~3,500자급) 리포트 작성 원칙**:
+      - 문체 및 어투: 친절한 구어체가 아닌 **단정한 전문 문어체(~다, ~함, ~로 분석된다)**를 철저히 유지하십시오.
+      - target_topic: 구글 검색 유입을 노린 매력적인 제목 (예: [2026 심층분석] 차세대 ADC 항암제 파이프라인과 글로벌 기술수출 분석 / [2026 심층분석] AI 데이터센터 전력 대란과 차세대 SMR 로드맵)
+      - overview: 발생 배경 및 구조적 개요 (최소 3~4개 단락, 500자 이상 - 글로벌 거시 환경, 정책 계기, 왜 지금 이슈가 촉발되었는지 서술)
+      - structural_analysis: 핵심 메커니즘 및 데이터 심층 분석 (최소 3~4개 단락, 800자 이상 - 기술 원리, 기존 방식과의 차이, 공정 수율, 시장 점유율 등 구체적 수치와 함께 심층 해설)
+      - comparison_table: 4~5개 행의 정밀 비교 분석 데이터 표 (headers 3~4개, rows 3~5개)
+      - enterprise_analysis: 주요 관련 기업 및 수혜/리스크 밸류체인 분석 (최소 3~4개 단락, 600자 이상 - 본문에서 다룬 핵심 관련 기업 2~3곳의 포지셔닝, 실질적 수혜 요인 및 극복 과제를 기업별로 조목조목 심층 서술)
+      - outlook_and_impact: 향후 로드맵, 정책 일정 및 리스크 점검 (최소 3~4개 단락, 500자 이상 - 향후 1~2년 예상 일정표, 실무자/투자자 체크리스트)
+      - key_glossary: 구글 검색 유입을 위한 핵심 전문 용어/개념 3~4개 및 충실한 해설
+      - tags: 심층분석 주제 키워드 및 본문에서 분석한 핵심 수혜 기업/종목명을 결합한 고유 검색 태그 5~8개 (예: ['ADC항암제', '리가켐바이오', '유한양행', '표적항암제', '기술수출', '바이오시밀러'])
 
 응답은 반드시 아래 JSON 스키마를 따르며, 마크다운 코드 블록 없이 순수 JSON만 출력하세요:
 
@@ -911,21 +916,23 @@ class AIEngine:
   }},
   "tistory_deep_dive": {{
     "target_topic": "String (에버그린 심층분석 제목)",
-    "overview": "String (배경 및 정의 - 단정한 문어체 '~다', '~함')",
-    "structural_analysis": "String (핵심 데이터 및 구조적 분석 - 단정한 문어체)",
+    "overview": "String (발생 배경 및 구조적 개요 - 최소 3~4개 단락 500자 이상, 단정한 문어체 '~다', '~함')",
+    "structural_analysis": "String (핵심 메커니즘 및 시장 데이터 심층 분석 - 최소 3~4개 단락 800자 이상, 단정한 문어체)",
     "comparison_table": {{
-      "headers": ["String (구분)", "String (기존)", "String (개편/전망)", "String (시장 영향)"],
+      "headers": ["String (구분)", "String (기존 방식/체제)", "String (차세대 혁신/개편)", "String (시장/경제적 파급효과)"],
       "rows": [
         ["String", "String", "String", "String"]
       ]
     }},
-    "outlook_and_impact": "String (향후 일정, 파급효과 및 리스크 - 단정한 문어체)",
+    "enterprise_analysis": "String (주요 관련 기업 및 수혜/리스크 밸류체인 분석 - 핵심 기업 2~3곳의 포지셔닝 및 수혜요인, 최소 3~4개 단락 600자 이상, 단정한 문어체)",
+    "outlook_and_impact": "String (향후 로드맵, 정책 일정 및 리스크 점검 - 최소 3~4개 단락 500자 이상, 단정한 문어체)",
     "key_glossary": [
       {{
         "term": "String (핵심 용어)",
         "definition": "String (전문 해설 - 단정한 문어체)"
       }}
-    ]
+    ],
+    "tags": ["String (심층분석 주제 키워드 및 본문 분석 핵심 기업/종목명 결합 태그 5~8개)"]
   }}
 }}"""
 
@@ -1823,10 +1830,59 @@ def _render_tistory_full_briefing_html(briefing_data, indicators=None, tags_str=
     return "\n".join(html_parts)
 
 
+def _extract_deep_dive_tags(briefing_data):
+    """
+    티스토리 심층분석 전용 검색 태그(5~8개)를 추출합니다.
+    1순위: AI가 생성한 tistory_deep_dive.tags
+    2순위: 지능형 폴백 (target_topic 키워드 + key_watchlist_companies 및 관련 기업 + key_glossary)
+    """
+    dive = briefing_data.get("tistory_deep_dive") if isinstance(briefing_data, dict) else None
+    if isinstance(dive, dict):
+        ai_tags = dive.get("tags")
+        if ai_tags and isinstance(ai_tags, list):
+            cleaned = [str(t).strip().replace("#", "").replace(",", "") for t in ai_tags if str(t).strip()]
+            if len(cleaned) >= 3:
+                return ", ".join(cleaned[:8])
+    
+    # 지능형 폴백 (Fallback): 심층 테마 + 기업/종목 중심 구성
+    tags = []
+    
+    # 1. target_topic에서 핵심 키워드 2~3개 추출
+    topic = dive.get("target_topic", "") if isinstance(dive, dict) else ""
+    clean_topic = topic.replace("[심층분석]", "").replace("[2026 심층분석]", "").strip()
+    words = [w.strip() for w in clean_topic.replace("과", " ").replace("와", " ").replace("의", " ").replace("를", " ").replace("을", " ").split() if len(w.strip()) >= 2]
+    for w in words[:3]:
+        if w not in tags:
+            tags.append(w)
+            
+    # 2. 브리핑 내 핵심 관련 기업(watchlist) 및 본문 섹션 내 기업 추가
+    watchlist = briefing_data.get("key_watchlist_companies", []) if isinstance(briefing_data, dict) else []
+    for c in watchlist:
+        c_name = c.get("name") if isinstance(c, dict) else str(c).strip()
+        if c_name and c_name not in tags:
+            tags.append(c_name)
+            if len(tags) >= 5:
+                break
+                
+    # 3. 용어사전 키워드 추가
+    glossary = dive.get("key_glossary", []) if isinstance(dive, dict) else []
+    for g in glossary:
+        term = g.get("term", "").split("(")[0].strip() if isinstance(g, dict) else ""
+        if term and term not in tags:
+            tags.append(term)
+            if len(tags) >= 7:
+                break
+                
+    if not tags:
+        tags = ["심층분석", "산업전망", "핵심밸류체인", "기업분석", "미래성장동력"]
+        
+    return ", ".join(tags[:8])
+
+
 def _render_tistory_deep_dive_html(briefing_data, tags_str=""):
     """
-    티스토리 에버그린 아카이빙을 위한 전문 문어체(~다, ~함) 심층 분석 리포트 HTML을 생성합니다.
-    H2/H3 태그 시맨틱 구조, 구조화된 표, 관련 핵심 용어 해설(Glossary), 검색 태그가 포함됩니다.
+    티스토리 에버그린 아카이빙을 위한 전문 문어체(~다, ~함) 고밀도 심층 분석 리포트 HTML을 생성합니다.
+    H2/H3 태그 시맨틱 구조, 4~5행 구조화 정밀 표, 주요 관련 기업 및 밸류체인 분석, 용어사전(Glossary), 맞춤 검색 태그가 포함됩니다.
     """
     dive = briefing_data.get("tistory_deep_dive")
     
@@ -1843,25 +1899,34 @@ def _render_tistory_deep_dive_html(briefing_data, tags_str=""):
             "overview": overview_text,
             "structural_analysis": analysis_text,
             "comparison_table": {
-                "headers": ["구분", "기존 체제", "개편 및 미래 전망", "핵심 시사점"],
+                "headers": ["구분", "기존 방식/체제", "차세대 혁신/개편", "핵심 시사점"],
                 "rows": [
                     ["산업 생태계", "공급망 파편화 및 단기 대응", "수직 통합 및 차세대 표준 선점", "시장 재편 가속화"],
-                    ["기업 경쟁력", "원가 절감 중심", "기술 격차 및 생산 수율 확보", "선도 기업 독점 심화"]
+                    ["기업 경쟁력", "원가 절감 중심", "기술 격차 및 생산 수율 확보", "선도 기업 독점 심화"],
+                    ["수혜 밸류체인", "전통 조립 및 외주 가공", "고부가가치 핵심 부품/소재 국산화", "영업이익률 극대화"],
+                    ["시장 파급력", "국내외 점유율 정체", "글로벌 빅테크 공급망 직납", "기업가치 리레이팅"]
                 ]
             },
+            "enterprise_analysis": "주요 선도 기업들은 독자적인 기술 로드맵과 대규모 시설 투자를 바탕으로 글로벌 시장 점유율을 공격적으로 확대하고 있다. 특히 수직 계열화를 달성한 핵심 기업들은 원가 경쟁력과 수율 안정성을 동시에 확보하며 후발 주자와의 격차를 벌리는 중이다. 반면 중소 협력사들은 차세대 표준 전환에 따른 연구개발(R&D) 비용 부담과 품질 인증 지연 리스크를 안고 있어, 핵심 특허를 보유한 기술 집약형 강소기업 위주로 밸류체인 재편이 가속화될 것으로 분석된다.",
             "outlook_and_impact": "향후 규제 일정 및 주요국의 산업 정책 발표에 따라 시장의 불확실성이 일부 상존하나, 중장기적으로는 선도 기업을 중심으로 시장 재편이 불가피할 것으로 전망된다. 투자자 및 실무진은 단기 뉴스에 일희일비하기보다 핵심 밸류체인의 수주 잔고와 수익성 개선 추이를 면밀히 모니터링해야 한다.",
             "key_glossary": [
                 {"term": "밸류체인 (Value Chain)", "definition": "제품이나 서비스가 최초 기획 및 원자재 공급부터 최종 소비자에게 도달하기까지의 부가가치 생성 활동 전체 사슬을 의미함."},
-                {"term": "수익성 스프레드 (Profit Spread)", "definition": "완제품 판매 가격과 원자재 및 운영 비용 간의 격차로, 기업의 실질 마진 체력을 나타내는 지표임."}
-            ]
+                {"term": "수익성 스프레드 (Profit Spread)", "definition": "완제품 판매 가격과 원자재 및 운영 비용 간의 격차로, 기업의 실질 마진 체력을 나타내는 지표임."},
+                {"term": "리레이팅 (Re-rating)", "definition": "기술 혁신이나 시장 구조 변화로 인해 기업의 실적 잠재력이 재평가되어 주가수익비율(PER) 등 밸류에이션 배수가 한 단계 격상되는 현상임."}
+            ],
+            "tags": []
         }
         
     topic = dive.get("target_topic") or "[심층분석] 글로벌 산업·경제 핵심 이슈"
     overview = (dive.get("overview") or "").replace("\n", "<br>")
     analysis = (dive.get("structural_analysis") or "").replace("\n", "<br>")
+    enterprise = (dive.get("enterprise_analysis") or "").replace("\n", "<br>")
     outlook = (dive.get("outlook_and_impact") or "").replace("\n", "<br>")
     table_data = dive.get("comparison_table") or {}
     glossary = dive.get("key_glossary") or []
+
+    # 태그 결정 (전달받은 tags_str이 있거나 전용 태그가 있으면 사용, 없으면 폴백)
+    actual_tags_str = tags_str if tags_str else _extract_deep_dive_tags(briefing_data)
 
     # 표 HTML 렌더링
     table_html = ""
@@ -1884,6 +1949,18 @@ def _render_tistory_deep_dive_html(briefing_data, tags_str=""):
       </table>
     </div>"""
 
+    # 기업 밸류체인 분석 섹션 HTML (enterprise_analysis가 있을 때)
+    enterprise_html = ""
+    if enterprise:
+        enterprise_html = f"""
+  <!-- 3. 주요 관련 기업 및 밸류체인 수혜/리스크 분석 -->
+  <h2 style="font-size: 19px; font-weight: 800; color: #0F172A; border-bottom: 2px solid #EA580C; padding-bottom: 8px; margin-top: 36px; margin-bottom: 14px; display: flex; align-items: center; gap: 8px;">
+    <span style="color: #EA580C;">3.</span> 주요 관련 기업 및 밸류체인 수혜/리스크 분석
+  </h2>
+  <div style="font-size: 14.5px; color: #334155; line-height: 1.8; margin-bottom: 24px; background: #F8FAFC; padding: 18px 20px; border-radius: 8px; border-left: 4px solid #EA580C;">
+    {enterprise}
+  </div>"""
+
     # 용어 사전 렌더링
     glossary_html = ""
     if glossary:
@@ -1897,18 +1974,19 @@ def _render_tistory_deep_dive_html(briefing_data, tags_str=""):
           <div style="font-size: 13px; color: #431407; line-height: 1.6;">{d}</div>
         </div>""")
         glossary_html = f"""
-    <div style="margin: 24px 0; padding: 18px 20px; background-color: #FFF7ED; border-radius: 8px; border: 1px solid #FFEDD5;">
-      <div style="font-size: 14px; font-weight: 800; color: #9A3412; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
-        <span>🔍 구글 검색 유입을 위한 핵심 개념 & 용어 사전 (Glossary)</span>
-      </div>
-      {''.join(items_html)}
-    </div>"""
+  <!-- 5. 용어 해설 -->
+  <div style="margin: 24px 0; padding: 18px 20px; background-color: #FFF7ED; border-radius: 8px; border: 1px solid #FFEDD5;">
+    <div style="font-size: 14px; font-weight: 800; color: #9A3412; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+      <span>🔍 구글 검색 유입을 위한 핵심 개념 & 용어 사전 (Glossary)</span>
+    </div>
+    {''.join(items_html)}
+  </div>"""
 
     now_kst = datetime.now(KST)
     today_str = now_kst.strftime("%Y년 %m월 %d일")
 
     return f"""
-<!-- ===== 티스토리 전용 에버그린 아카이빙 심층 리포트 (HTML 모드 복사용) ===== -->
+<!-- ===== 티스토리 전용 에버그린 아카이빙 고밀도 심층 리포트 (HTML 모드 복사용) ===== -->
 <div id="tistory-article-container" style="max-width: 760px; margin: 20px auto; background-color: #FFFFFF; padding: 36px 32px; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.08); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans KR', sans-serif; line-height: 1.75; color: #1E293B;">
 
   <!-- 리포트 헤더 -->
@@ -1941,22 +2019,23 @@ def _render_tistory_deep_dive_html(briefing_data, tags_str=""):
   </div>
   {table_html}
 
-  <!-- 3. 향후 전망 및 파급 효과 -->
+  {enterprise_html}
+
+  <!-- 4. 향후 전망 및 파급 효과 -->
   <h2 style="font-size: 19px; font-weight: 800; color: #0F172A; border-bottom: 2px solid #EA580C; padding-bottom: 8px; margin-top: 36px; margin-bottom: 14px; display: flex; align-items: center; gap: 8px;">
-    <span style="color: #EA580C;">3.</span> 향후 일정, 산업별 파급효과 및 주요 리스크
+    <span style="color: #EA580C;">4.</span> 향후 로드맵, 정책 일정 및 주요 리스크 점검
   </h2>
   <div style="font-size: 14.5px; color: #334155; line-height: 1.8; margin-bottom: 24px;">
     {outlook}
   </div>
 
-  <!-- 4. 용어 해설 -->
   {glossary_html}
 
   <!-- 하단 티스토리 검색 태그 -->
   <div style="margin-top: 32px; padding-top: 16px; border-top: 1px dashed #CBD5E1;">
-    <div style="font-size: 12px; font-weight: 700; color: #64748B; margin-bottom: 8px;">🏷️ 관련 추천 검색 태그</div>
-    <div style="font-size: 12px; color: #EA580C; line-height: 1.6;">
-      {tags_str}
+    <div style="font-size: 12px; font-weight: 700; color: #64748B; margin-bottom: 8px;">🏷️ 관련 추천 검색 태그 (기업·종목 및 심층 테마 특화)</div>
+    <div style="font-size: 12px; color: #EA580C; line-height: 1.6; font-weight: 600;">
+      {actual_tags_str}
     </div>
   </div>
 
@@ -2057,7 +2136,7 @@ def _render_threads_post_html(briefing_data):
 """
 
 
-def _get_naver_blog_toolbar_and_script(tags_str="모닝브리핑, 데일리브리핑, 글로벌경제, 경제지표, 환율, 미국증시, 국내증시"):
+def _get_naver_blog_toolbar_and_script(tags_str="모닝브리핑, 데일리브리핑, 글로벌경제, 경제지표, 환율, 미국증시, 국내증시", deep_tags_str=""):
     """
     네이버 블로그 및 티스토리 포스팅을 위한 상단 고정 원클릭 복사 도우미 툴바와 html2canvas 캡처 스크립트를 반환합니다.
     """
@@ -2120,7 +2199,7 @@ def _get_naver_blog_toolbar_and_script(tags_str="모닝브리핑, 데일리브�
         <button onclick="copyTistoryFullHtml()" style="background: linear-gradient(135deg, #EA580C, #C2410C); color: #FFFFFF; border: none; padding: 7px 14px; border-radius: 6px; font-size: 12px; font-weight: 800; cursor: pointer; box-shadow: 0 2px 8px rgba(234,88,12,0.4);" title="티스토리 에디터 [HTML 모드]에 바로 붙여넣는 전체 브리핑 원본 소스 복사">
           🧡 티스토리 전체 HTML 복사
         </button>
-        <button onclick="copyTistoryTags()" style="background: linear-gradient(135deg, #F97316, #EA580C); color: #FFFFFF; border: none; padding: 7px 12px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer;" title="티스토리 태그란에 붙여넣을 검색 키워드 복사">
+        <button onclick="copyTistoryTags()" style="background: linear-gradient(135deg, #F97316, #EA580C); color: #FFFFFF; border: none; padding: 7px 12px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer;" title="티스토리 태그란에 붙여넣을 종합 검색 키워드 복사">
           🏷️ 티스토리 태그 복사
         </button>
         <button onclick="copyTistoryFullText()" style="background: #334155; color: #F1F5F9; border: 1px solid #475569; padding: 7px 12px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer;" title="텍스트 본문만 복사">
@@ -2133,8 +2212,8 @@ def _get_naver_blog_toolbar_and_script(tags_str="모닝브리핑, 데일리브�
         <button onclick="copyTistoryDeepHtml()" style="background: linear-gradient(135deg, #D97706, #B45309); color: #FFFFFF; border: none; padding: 7px 14px; border-radius: 6px; font-size: 12px; font-weight: 800; cursor: pointer; box-shadow: 0 2px 8px rgba(217,119,6,0.4);" title="티스토리 에디터 [HTML 모드]에 바로 붙여넣는 심층 리포트 소스 복사">
           📑 심층 리포트 HTML 복사
         </button>
-        <button onclick="copyTistoryTags()" style="background: linear-gradient(135deg, #F97316, #EA580C); color: #FFFFFF; border: none; padding: 7px 12px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer;" title="티스토리 태그란에 붙여넣을 검색 키워드 복사">
-          🏷️ 티스토리 태그 복사
+        <button onclick="copyTistoryDeepTags()" style="background: linear-gradient(135deg, #F97316, #EA580C); color: #FFFFFF; border: none; padding: 7px 12px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer;" title="심층분석 테마 및 기업/종목 맞춤 태그 복사">
+          🏷️ 심층 태그 복사
         </button>
         <button onclick="copyTistoryDeepText()" style="background: #334155; color: #F1F5F9; border: 1px solid #475569; padding: 7px 12px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer;" title="심층 텍스트 본문만 복사">
           📝 심층 텍스트 복사
@@ -2152,8 +2231,11 @@ def _get_naver_blog_toolbar_and_script(tags_str="모닝브리핑, 데일리브�
   </div>
 </div>
 
-<!-- 숨겨진 티스토리 검색 태그 보관소 -->
+<!-- 숨겨진 티스토리 전체 검색 태그 보관소 -->
 <div id="briefing-tags-data" class="no-copy" style="display: none;">{tags_str}</div>
+
+<!-- 숨겨진 티스토리 심층분석 전용 검색 태그 보관소 -->
+<div id="deep-dive-tags-data" class="no-copy" style="display: none;">{deep_tags_str}</div>
 
 <!-- 토스트 알림창 -->
 <div id="copy-toast" style="display: none; position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #10B981; color: #FFFFFF; padding: 12px 24px; border-radius: 30px; font-size: 13px; font-weight: 700; box-shadow: 0 6px 20px rgba(0,0,0,0.3); z-index: 10001; text-align: center; transition: opacity 0.3s ease;">
@@ -2385,7 +2467,7 @@ async function copyTistoryTags() {
       document.execCommand('copy');
       document.body.removeChild(textarea);
     }
-    showToast('🏷️ 티스토리 검색 태그 복사 완료! 티스토리 태그란에 [Ctrl+V] 하세요.', '#F97316');
+    showToast('🏷️ 티스토리 종합 검색 태그 복사 완료! 티스토리 태그란에 [Ctrl+V] 하세요.', '#F97316');
   } catch (err) {
     try {
       const textarea = document.createElement('textarea');
@@ -2397,7 +2479,44 @@ async function copyTistoryTags() {
       textarea.select();
       document.execCommand('copy');
       document.body.removeChild(textarea);
-      showToast('🏷️ 티스토리 검색 태그 복사 완료! 티스토리 태그란에 [Ctrl+V] 하세요.', '#F97316');
+      showToast('🏷️ 티스토리 종합 검색 태그 복사 완료! 티스토리 태그란에 [Ctrl+V] 하세요.', '#F97316');
+    } catch(e) {
+      showToast('❌ 태그 복사 실패: ' + e.message, '#EF4444');
+    }
+  }
+}
+
+async function copyTistoryDeepTags() {
+  const tagEl = document.getElementById('deep-dive-tags-data');
+  const fallbackEl = document.getElementById('briefing-tags-data');
+  const tags = (tagEl && tagEl.innerText.trim()) ? tagEl.innerText.trim() : (fallbackEl ? fallbackEl.innerText.trim() : '심층분석, 산업전망, 기업분석, 밸류체인');
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(tags);
+    } else {
+      const textarea = document.createElement('textarea');
+      textarea.value = tags;
+      textarea.style.position = 'fixed';
+      textarea.style.left = '-9999px';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    }
+    showToast('🏷️ 심층분석 맞춤 태그(기업·종목 특화) 복사 완료! 티스토리 태그란에 [Ctrl+V] 하세요.', '#D97706');
+  } catch (err) {
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = tags;
+      textarea.style.position = 'fixed';
+      textarea.style.left = '-9999px';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      showToast('🏷️ 심층분석 맞춤 태그(기업·종목 특화) 복사 완료! 티스토리 태그란에 [Ctrl+V] 하세요.', '#D97706');
     } catch(e) {
       showToast('❌ 태그 복사 실패: ' + e.message, '#EF4444');
     }
@@ -2660,7 +2779,7 @@ def format_briefing_to_html(briefing_data, indicators=None, has_image=False, for
     weekday_kr = ["월", "화", "수", "목", "금", "토", "일"]
     today_weekday = weekday_kr[now_kst.weekday()]
 
-    # ── 티스토리 및 SEO용 태그 목록 동적 생성 ──
+    # ── 티스토리 전체 브리핑용 종합 태그 목록 동적 생성 ──
     tag_list = ["모닝브리핑", "데일리브리핑", "경제뉴스", "글로벌경제", "환율", "미국증시", "국내증시", "주식시황"]
     for comp in watchlist_companies:
         c_name = comp.get("name") if isinstance(comp, dict) else str(comp)
@@ -2673,6 +2792,9 @@ def format_briefing_to_html(briefing_data, indicators=None, has_image=False, for
                 tag_list.append(kw)
     tags_str = ", ".join(tag_list[:12])
 
+    # ── 티스토리 심층분석 전용 맞춤 태그 (기업·종목 및 심층 테마 특화) ──
+    deep_tags_str = _extract_deep_dive_tags(briefing_data)
+
     parts = []
 
     # ── HTML 시작 ──
@@ -2682,7 +2804,7 @@ def format_briefing_to_html(briefing_data, indicators=None, has_image=False, for
 <body style="margin: 0; padding: 0; background-color: #F1F5F9; font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', Arial, sans-serif; -webkit-font-smoothing: antialiased;">""")
 
     # 블로그 복사 툴바 (로컬 뷰어 전용)
-    toolbar_html, script_html = _get_naver_blog_toolbar_and_script(tags_str=tags_str) if for_local_viewer else ("", "")
+    toolbar_html, script_html = _get_naver_blog_toolbar_and_script(tags_str=tags_str, deep_tags_str=deep_tags_str) if for_local_viewer else ("", "")
     if for_local_viewer and toolbar_html:
         parts.append(toolbar_html)
 
@@ -2945,7 +3067,7 @@ def format_briefing_to_html(briefing_data, indicators=None, has_image=False, for
 <!-- [채널 3] 티스토리 심층 테마 분석 리포트 뷰 -->
 <div id="channel-view-tistory-deep" class="channel-content-view" style="display: none;">
 """)
-        parts.append(_render_tistory_deep_dive_html(briefing_data, tags_str=tags_str))
+        parts.append(_render_tistory_deep_dive_html(briefing_data, tags_str=deep_tags_str))
         parts.append("""
 </div><!-- /channel-view-tistory-deep -->
 
